@@ -18,8 +18,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Frp"
         tools:targetApi="tiramisu">
-        <activity android:name=".ConfigActivity" />
+        <activity
+            android:name=".ConfigActivity"
+            android:windowSoftInputMode="adjustResize" />
         <activity android:name=".AboutActivity" />
+        <activity android:name=".SettingsActivity" />
 
         <meta-data
             android:name="Website"

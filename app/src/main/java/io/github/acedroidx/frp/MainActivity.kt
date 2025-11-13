@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,9 +31,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,21 +44,28 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -72,10 +80,11 @@ import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private val isStartup = MutableStateFlow(false)
-    private val logText = MutableStateFlow("")
     private val frpcConfigList = MutableStateFlow<List<FrpConfig>>(emptyList())
     private val frpsConfigList = MutableStateFlow<List<FrpConfig>>(emptyList())
     private val runningConfigList = MutableStateFlow<List<FrpConfig>>(emptyList())
+    private val frpVersion = MutableStateFlow("Loading...")
+    private val themeMode = MutableStateFlow("跟随系统")
 
     private lateinit var preferences: SharedPreferences
 
@@ -91,14 +100,34 @@ class MainActivity : ComponentActivity() {
             mService = binder.getService()
             mBound = true
 
+            // 获取frp版本
+            lifecycleScope.launch {
+                try {
+                    val frpcVersion = mService.getFrpVersion(FrpType.FRPC)
+                    val frpsVersion = mService.getFrpVersion(FrpType.FRPS)
+                    val version = if (frpcVersion == frpsVersion) {
+                        frpcVersion
+                    } else {
+                        "frpc:$frpcVersion/frps:$frpsVersion"
+                    }
+                    frpVersion.value = version
+                    // 存储到 SharedPreferences
+                    with(preferences.edit()) {
+                        putString(PreferencesKey.FRP_VERSION, version)
+                        apply()
+                    }
+                } catch (e: Exception) {
+                    frpVersion.value = "Error"
+                    with(preferences.edit()) {
+                        putString(PreferencesKey.FRP_VERSION, "Error")
+                        apply()
+                    }
+                }
+            }
+
             mService.lifecycleScope.launch {
                 mService.processThreads.collect { processThreads ->
                     runningConfigList.value = processThreads.keys.toList()
-                }
-            }
-            mService.lifecycleScope.launch {
-                mService.logText.collect {
-                    logText.value = it
                 }
             }
         }
@@ -117,8 +146,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 检查是否需要退出应用
+        if (intent.getBooleanExtra("EXIT_APP", false)) {
+            finishAffinity() // 关闭所有 Activity
+            return
+        }
+
         preferences = getSharedPreferences("data", MODE_PRIVATE)
         isStartup.value = preferences.getBoolean(PreferencesKey.AUTO_START, false)
+        frpVersion.value = preferences.getString(PreferencesKey.FRP_VERSION, "Loading...") ?: "Loading..."
+        themeMode.value = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
 
         checkConfig()
         updateConfigList()
@@ -127,18 +164,33 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            FrpTheme {
+            val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
+            FrpTheme(themeMode = currentTheme) {
+                val frpVersion by frpVersion.collectAsStateWithLifecycle("Loading...")
                 Scaffold(topBar = {
-                    TopAppBar(title = {
-                        Text("frp for Android - ${BuildConfig.VERSION_NAME}/${BuildConfig.FrpVersion}")
-                    })
+                    TopAppBar(
+                        title = {
+                            Text("frp for Android - ${BuildConfig.VERSION_NAME}/$frpVersion")
+                        },
+                        actions = {
+                            IconButton(onClick = {
+                                startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+                            }) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_settings_24dp),
+                                    contentDescription = "设置"
+                                )
+                            }
+                        }
+                    )
                 }) { contentPadding ->
                     // Screen content
                     Box(
                         modifier = Modifier
                             .padding(contentPadding)
                             .verticalScroll(rememberScrollState())
-                            .scrollable(orientation = Orientation.Vertical,
+                            .scrollable(
+                                orientation = Orientation.Vertical,
                                 state = rememberScrollableState { delta -> 0f })
                     ) {
                         MainContent()
@@ -158,8 +210,6 @@ class MainActivity : ComponentActivity() {
     fun MainContent() {
         val frpcConfigList by frpcConfigList.collectAsStateWithLifecycle(emptyList())
         val frpsConfigList by frpsConfigList.collectAsStateWithLifecycle(emptyList())
-        val clipboardManager = LocalClipboardManager.current
-        val logText by logText.collectAsStateWithLifecycle("")
         val openDialog = remember { mutableStateOf(false) }
         Column(
             modifier = Modifier
@@ -184,53 +234,12 @@ class MainActivity : ComponentActivity() {
             HorizontalDivider(thickness = 2.dp, modifier = Modifier.padding(vertical = 16.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(stringResource(R.string.auto_start_switch))
-                Switch(checked = isStartup.collectAsStateWithLifecycle(false).value,
-                    onCheckedChange = {
-                        val editor = preferences.edit()
-                        editor.putBoolean(PreferencesKey.AUTO_START, it)
-                        editor.apply()
-                        isStartup.value = it
-                    })
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceAround,
+                horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Button(onClick = {
                     openDialog.value = true
                 }) { Text(stringResource(R.string.addConfigButton)) }
-                Button(onClick = {
-                    startActivity(Intent(this@MainActivity, AboutActivity::class.java))
-                }) { Text(stringResource(R.string.aboutButton)) }
-            }
-            HorizontalDivider(thickness = 2.dp, modifier = Modifier.padding(vertical = 16.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    stringResource(R.string.frp_log), style = MaterialTheme.typography.titleLarge
-                )
-                Button(onClick = { mService.clearLog() }) { Text(stringResource(R.string.deleteButton)) }
-                Button(onClick = {
-                    clipboardManager.setText(AnnotatedString(logText))
-                    // Only show a toast for Android 12 and lower.
-                    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) Toast.makeText(
-                        this@MainActivity, getString(R.string.copied), Toast.LENGTH_SHORT
-                    ).show()
-                }) { Text(stringResource(R.string.copy)) }
-            }
-            SelectionContainer {
-                Text(
-                    if (logText == "") stringResource(R.string.no_log) else logText,
-                    style = MaterialTheme.typography.bodyMedium.merge(fontFamily = FontFamily.Monospace),
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
             }
         }
         if (openDialog.value) {
@@ -242,33 +251,204 @@ class MainActivity : ComponentActivity() {
     fun FrpConfigItem(config: FrpConfig) {
         val runningConfigList by runningConfigList.collectAsStateWithLifecycle(emptyList())
         val isRunning = runningConfigList.contains(config)
-        Row(
-            verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
+        val showLog = remember { mutableStateOf(false) }
+        val showDeleteDialog = remember { mutableStateOf(false) }
+
+        // 监听实时配置日志
+        val configLogs by if (mBound) {
+            mService.configLogs.collectAsStateWithLifecycle(emptyMap())
+        } else {
+            remember { MutableStateFlow(emptyMap<FrpConfig, String>()) }.collectAsStateWithLifecycle(emptyMap())
+        }
+
+        val configLog = configLogs[config] ?: ""
+
+        // 初始化时加载日志
+        LaunchedEffect(showLog.value, isRunning, mBound) {
+            if (showLog.value && mBound) {
+                mService.getConfigLog(config)
+            }
+        }
+
+        Column(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text(config.fileName)
-            Spacer(Modifier.weight(1f))
-            IconButton(
-                onClick = { startConfigActivity(config) },
-                enabled = !isRunning,
-                modifier = Modifier.size(24.dp)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                ),
+                onClick = {
+                    if (mBound) {
+                        showLog.value = !showLog.value
+                        if (showLog.value) {
+                            mService.getConfigLog(config)
+                        }
+                    }
+                }
             ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_pencil_24dp),
-                    contentDescription = "编辑"
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(config.fileName)
+                        if (isRunning) {
+                            Text(
+                                "运行中",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Text(
+                        text = if (showLog.value) "▲" else "▼",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    IconButton(
+                        onClick = { startConfigActivity(config) },
+                        enabled = !isRunning,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_pencil_24dp),
+                            contentDescription = "编辑",
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            showDeleteDialog.value = true
+                        },
+                        enabled = !isRunning,
+                        modifier = Modifier.size(32.dp,28.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_baseline_delete_24),
+                            contentDescription = "删除配置",
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    Switch(checked = isRunning, onCheckedChange = {
+                        if (it) {
+                            startShell(config)
+                        } else {
+                            stopShell(config)
+                            showLog.value = false  // 关闭时自动收起日志
+                        }
+                    })
+                }
             }
-            IconButton(
-                onClick = { deleteConfig(config) },
-                enabled = !isRunning,
+
+            // 可折叠的日志视图
+            AnimatedVisibility(
+                visible = showLog.value,
+                enter = expandVertically(
+                    animationSpec = tween(
+                        durationMillis = 300,
+                        easing = FastOutSlowInEasing
+                    )
+                ) + fadeIn(
+                    animationSpec = tween(
+                        durationMillis = 300,
+                        easing = FastOutSlowInEasing
+                    )
+                ),
+                exit = shrinkVertically(
+                    animationSpec = tween(
+                        durationMillis = 250,
+                        easing = FastOutSlowInEasing
+                    )
+                ) + fadeOut(
+                    animationSpec = tween(
+                        durationMillis = 250,
+                        easing = FastOutSlowInEasing
+                    )
+                )
             ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_baseline_delete_24),
-                    contentDescription = "删除"
-                )
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "配置日志",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Button(
+                                onClick = {
+                                    if (mBound) {
+                                        mService.clearConfigLog(config)
+                                    }
+                                },
+                                modifier = Modifier.size(width = 80.dp, height = 35.dp)
+                            ) {
+                                Text(
+                                    "清除",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                        SelectionContainer {
+                            Text(
+                                text = if (configLog.isEmpty()) {
+                                    "暂无日志"
+                                } else {
+                                    configLog
+                                },
+                                style = MaterialTheme.typography.bodySmall.merge(fontFamily = FontFamily.Monospace),
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
             }
-            Switch(checked = isRunning, onCheckedChange = {
-                if (it) (startShell(config)) else (stopShell(config))
-            })
+        }
+
+        // 删除确认对话框
+        if (showDeleteDialog.value) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog.value = false },
+                title = { Text("确认删除") },
+                text = { Text("确认删除 ${config.fileName} 吗？") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            deleteConfig(config)
+                            showDeleteDialog.value = false
+                        }
+                    ) {
+                        Text("删除")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showDeleteDialog.value = false }
+                    ) {
+                        Text("取消")
+                    }
+                }
+            )
         }
     }
 
@@ -307,6 +487,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 从 SharedPreferences 重新加载主题设置
+        val savedTheme = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
+        themeMode.value = savedTheme
     }
 
     override fun onDestroy() {

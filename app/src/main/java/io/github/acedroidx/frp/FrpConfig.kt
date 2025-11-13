@@ -21,4 +21,13 @@ data class FrpConfig(
     fun getFile(context: Context): File {
         return File(this.getDir(context), this.fileName)
     }
+
+    fun getLogDir(context: Context): File {
+        return File(context.filesDir, "logs/${this.type.typeName}")
+    }
+
+    fun getLogFile(context: Context): File {
+        val logFileName = this.fileName.replace(".toml", ".log")
+        return File(this.getLogDir(context), logFileName)
+    }
 }

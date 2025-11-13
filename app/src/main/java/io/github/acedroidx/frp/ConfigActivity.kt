@@ -8,17 +8,14 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.rememberScrollableState
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,12 +28,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -50,6 +50,8 @@ import java.io.File
 class ConfigActivity : ComponentActivity() {
     private val configEditText = MutableStateFlow("")
     private val isAutoStart = MutableStateFlow(false)
+    private val frpVersion = MutableStateFlow("Loading...")
+    private val themeMode = MutableStateFlow("跟随系统")
     private lateinit var configFile: File
     private lateinit var autoStartPreferencesKey: String
     private lateinit var preferences: SharedPreferences
@@ -73,27 +75,23 @@ class ConfigActivity : ComponentActivity() {
         configFile = frpConfig.getFile(this)
         autoStartPreferencesKey = frpConfig.type.getAutoStartPreferencesKey()
         preferences = getSharedPreferences("data", MODE_PRIVATE)
+        frpVersion.value = preferences.getString(PreferencesKey.FRP_VERSION, "Loading...") ?: "Loading..."
+        themeMode.value = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
         readConfig()
         readIsAutoStart()
 
         enableEdgeToEdge()
         setContent {
-            FrpTheme {
+            val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
+            FrpTheme(themeMode = currentTheme) {
+                val frpVersion by frpVersion.collectAsStateWithLifecycle("Loading...")
                 Scaffold(topBar = {
                     TopAppBar(title = {
-                        Text("frp for Android - ${BuildConfig.VERSION_NAME}/${BuildConfig.FrpVersion}")
+                        Text("frp for Android - ${BuildConfig.VERSION_NAME}/$frpVersion")
                     })
                 }) { contentPadding ->
                     // Screen content
-                    Box(
-                        modifier = Modifier
-                            .padding(contentPadding)
-                            .verticalScroll(rememberScrollState())
-                            .scrollable(orientation = Orientation.Vertical,
-                                state = rememberScrollableState { delta -> 0f })
-                    ) {
-                        MainContent()
-                    }
+                    MainContent(contentPadding)
                 }
             }
         }
@@ -101,16 +99,26 @@ class ConfigActivity : ComponentActivity() {
 
     @Preview(showBackground = true)
     @Composable
-    fun MainContent() {
+    fun MainContent(contentPadding: PaddingValues = PaddingValues(0.dp)) {
         val openDialog = remember { mutableStateOf(false) }
+        val focusRequester = remember { FocusRequester() }
+
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+        }
+
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
+                .fillMaxSize()
+                .padding(contentPadding)
+                .imePadding()
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
             ) {
                 Button(onClick = { saveConfig();closeActivity() }) {
                     Text(stringResource(R.string.saveConfigButton))
@@ -124,16 +132,24 @@ class ConfigActivity : ComponentActivity() {
             }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
             ) {
                 Text(stringResource(R.string.auto_start_switch))
                 Switch(checked = isAutoStart.collectAsStateWithLifecycle(false).value,
                     onCheckedChange = { setAutoStart(it) })
             }
             TextField(
-                configEditText.collectAsStateWithLifecycle("").value,
+                value = configEditText.collectAsStateWithLifecycle("").value,
                 onValueChange = { configEditText.value = it },
-                textStyle = MaterialTheme.typography.bodyMedium.merge(fontFamily = FontFamily.Monospace)
+                textStyle = MaterialTheme.typography.bodyMedium.merge(fontFamily = FontFamily.Monospace),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+                    .focusRequester(focusRequester)
             )
         }
         if (openDialog.value) {

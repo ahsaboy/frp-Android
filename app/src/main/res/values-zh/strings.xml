@@ -3,7 +3,7 @@
     <string name="auto_start_switch">开机自启动</string>
     <string name="addConfigButton">添加配置</string>
     <string name="aboutButton">关于</string>
-    <string name="frp_log">frp日志</string>
+    <string name="frp_log">Frp日志</string>
     <string name="deleteButton">清除</string>
     <string name="no_log">无日志</string>
     <string name="saveConfigButton">保存</string>
