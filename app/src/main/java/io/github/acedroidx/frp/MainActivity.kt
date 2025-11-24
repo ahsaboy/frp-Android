@@ -650,13 +650,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * 检查特定权限是否已授予
-     */
-    private fun hasPermission(permission: String): Boolean {
-        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
-    }
-
     private fun createBGNotificationChannel() {
         // Create the NotificationChannel, but only on API 26+ because
         // the NotificationChannel class is new and not in the support library
