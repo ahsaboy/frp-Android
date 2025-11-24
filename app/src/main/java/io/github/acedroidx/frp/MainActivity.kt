@@ -8,15 +8,19 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.core.content.edit
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
@@ -37,7 +41,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -72,6 +77,7 @@ import androidx.lifecycle.lifecycleScope
 import io.github.acedroidx.frp.ui.theme.FrpTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import androidx.compose.material3.SnackbarResult
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -85,11 +91,24 @@ class MainActivity : ComponentActivity() {
     private val runningConfigList = MutableStateFlow<List<FrpConfig>>(emptyList())
     private val frpVersion = MutableStateFlow("Loading...")
     private val themeMode = MutableStateFlow("跟随系统")
+    private val permissionGranted = MutableStateFlow(true)
 
     private lateinit var preferences: SharedPreferences
 
     private lateinit var mService: ShellService
     private var mBound: Boolean = false
+
+    // 权限请求启动器
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        permissionGranted.value = isGranted
+        if (!isGranted) {
+            Log.w("adx", "Notification permission denied")
+        } else {
+            Log.d("adx", "Notification permission granted")
+        }
+    }
 
     /** Defines callbacks for service binding, passed to bindService()  */
     private val connection = object : ServiceConnection {
@@ -112,15 +131,13 @@ class MainActivity : ComponentActivity() {
                     }
                     frpVersion.value = version
                     // 存储到 SharedPreferences
-                    with(preferences.edit()) {
+                    preferences.edit {
                         putString(PreferencesKey.FRP_VERSION, version)
-                        apply()
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     frpVersion.value = "Error"
-                    with(preferences.edit()) {
+                    preferences.edit {
                         putString(PreferencesKey.FRP_VERSION, "Error")
-                        apply()
                     }
                 }
             }
@@ -159,31 +176,50 @@ class MainActivity : ComponentActivity() {
 
         checkConfig()
         updateConfigList()
-        checkNotificationPermission()
         createBGNotificationChannel()
+        checkAndRequestPermissions()
 
         enableEdgeToEdge()
         setContent {
             val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
+            val openDialog = remember { mutableStateOf(false) }
+            val snackbarHostState = remember { SnackbarHostState() }
+            val permissionGranted by permissionGranted.collectAsStateWithLifecycle(true)
+
             FrpTheme(themeMode = currentTheme) {
                 val frpVersion by frpVersion.collectAsStateWithLifecycle("Loading...")
-                Scaffold(topBar = {
-                    TopAppBar(
-                        title = {
-                            Text("frp for Android - ${BuildConfig.VERSION_NAME}/$frpVersion")
-                        },
-                        actions = {
-                            IconButton(onClick = {
-                                startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
-                            }) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_settings_24dp),
-                                    contentDescription = "设置"
-                                )
+                Scaffold(
+                    topBar = {
+                        TopAppBar(
+                            title = {
+                                Text("frp for Android - ${BuildConfig.VERSION_NAME}/$frpVersion")
+                            },
+                            actions = {
+                                IconButton(onClick = {
+                                    startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+                                }) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_settings_24dp),
+                                        contentDescription = "设置"
+                                    )
+                                }
                             }
+                        )
+                    },
+                    floatingActionButton = {
+                        FloatingActionButton(
+                            onClick = { openDialog.value = true }
+                        ) {
+                            Icon(
+                                painter = painterResource(id = android.R.drawable.ic_input_add),
+                                contentDescription = stringResource(R.string.addConfigButton)
+                            )
                         }
-                    )
-                }) { contentPadding ->
+                    },
+                    snackbarHost = {
+                        SnackbarHost(hostState = snackbarHostState)
+                    }
+                ) { contentPadding ->
                     // Screen content
                     Box(
                         modifier = Modifier
@@ -194,6 +230,30 @@ class MainActivity : ComponentActivity() {
                                 state = rememberScrollableState { delta -> 0f })
                     ) {
                         MainContent()
+                    }
+                }
+                if (openDialog.value) {
+                    CreateConfigDialog { openDialog.value = false }
+                }
+
+                // 显示权限提示
+                val scope = rememberCoroutineScope()
+                LaunchedEffect(permissionGranted) {
+                    if (!permissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "通知权限未授予，后台运行通知将无法显示",
+                                actionLabel = "去设置",
+                                withDismissAction = true
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                // 跳转到应用设置页面
+                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.fromParts("package", packageName, null)
+                                }
+                                startActivity(intent)
+                            }
+                        }
                     }
                 }
             }
@@ -210,7 +270,6 @@ class MainActivity : ComponentActivity() {
     fun MainContent() {
         val frpcConfigList by frpcConfigList.collectAsStateWithLifecycle(emptyList())
         val frpsConfigList by frpsConfigList.collectAsStateWithLifecycle(emptyList())
-        val openDialog = remember { mutableStateOf(false) }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -231,19 +290,6 @@ class MainActivity : ComponentActivity() {
                 Text("frps", style = MaterialTheme.typography.titleLarge)
             }
             frpsConfigList.forEach { config -> FrpConfigItem(config) }
-            HorizontalDivider(thickness = 2.dp, modifier = Modifier.padding(vertical = 16.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Button(onClick = {
-                    openDialog.value = true
-                }) { Text(stringResource(R.string.addConfigButton)) }
-            }
-        }
-        if (openDialog.value) {
-            CreateConfigDialog { openDialog.value = false }
         }
     }
 
@@ -411,10 +457,8 @@ class MainActivity : ComponentActivity() {
                         }
                         SelectionContainer {
                             Text(
-                                text = if (configLog.isEmpty()) {
+                                text = configLog.ifEmpty {
                                     "暂无日志"
-                                } else {
-                                    configLog
                                 },
                                 style = MaterialTheme.typography.bodySmall.merge(fontFamily = FontFamily.Monospace),
                                 modifier = Modifier.padding(vertical = 4.dp)
@@ -494,6 +538,15 @@ class MainActivity : ComponentActivity() {
         // 从 SharedPreferences 重新加载主题设置
         val savedTheme = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
         themeMode.value = savedTheme
+
+        // 重新检查权限状态（用户可能从设置页面返回）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val hasNotificationPermission = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            permissionGranted.value = hasNotificationPermission
+        }
     }
 
     override fun onDestroy() {
@@ -558,41 +611,50 @@ class MainActivity : ComponentActivity() {
 
     private fun startShell(config: FrpConfig) {
         val intent = Intent(this, ShellService::class.java)
-        intent.setAction(ShellServiceAction.START)
+        intent.action = ShellServiceAction.START
         intent.putExtra(IntentExtraKey.FrpConfig, arrayListOf(config))
         startService(intent)
     }
 
     private fun stopShell(config: FrpConfig) {
         val intent = Intent(this, ShellService::class.java)
-        intent.setAction(ShellServiceAction.STOP)
+        intent.action = ShellServiceAction.STOP
         intent.putExtra(IntentExtraKey.FrpConfig, arrayListOf(config))
         startService(intent)
     }
 
-    private fun checkNotificationPermission() {
-        val requestPermissionLauncher = registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
-            if (isGranted) {
-                // Permission is granted. Continue the action or workflow in your
-                // app.
-            } else {
-                // Explain to the user that the feature is unavailable because the
-                // feature requires a permission that the user has denied. At the
-                // same time, respect the user's decision. Don't link to system
-                // settings in an effort to convince the user to change their
-                // decision.
-            }
-        }
+    /**
+     * 检查并请求必要的运行时权限
+     */
+    private fun checkAndRequestPermissions() {
+        // Android 13 及以上需要通知权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    this, Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            val hasNotificationPermission = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            permissionGranted.value = hasNotificationPermission
+
+            if (!hasNotificationPermission) {
+                // 检查是否应该显示权限说明
+                if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+                    Log.d("adx", "Should show permission rationale")
+                }
+                // 请求权限
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
+        } else {
+            // Android 13 以下不需要动态请求通知权限
+            permissionGranted.value = true
         }
+    }
+
+    /**
+     * 检查特定权限是否已授予
+     */
+    private fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun createBGNotificationChannel() {
@@ -627,9 +689,8 @@ class MainActivity : ComponentActivity() {
                     FrpConfig(FrpType.FRPC, it)
                 )
             }
-        with(preferences.edit()) {
+        preferences.edit {
             putStringSet(PreferencesKey.AUTO_START_FRPC_LIST, frpcAutoStartList?.toSet())
-            apply()
         }
         val frpsAutoStartList =
             preferences.getStringSet(PreferencesKey.AUTO_START_FRPS_LIST, emptySet())?.filter {
@@ -637,9 +698,8 @@ class MainActivity : ComponentActivity() {
                     FrpConfig(FrpType.FRPS, it)
                 )
             }
-        with(preferences.edit()) {
+        preferences.edit {
             putStringSet(PreferencesKey.AUTO_START_FRPS_LIST, frpsAutoStartList?.toSet())
-            apply()
         }
     }
 }

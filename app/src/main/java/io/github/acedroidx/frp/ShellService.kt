@@ -12,14 +12,12 @@ import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.io.File
 import java.io.FileWriter
 import java.io.BufferedReader
 import java.io.FileReader
-import java.util.Random
 
 
 class ShellService : LifecycleService() {
@@ -27,15 +25,10 @@ class ShellService : LifecycleService() {
     val processThreads = _processThreads.asStateFlow()
 
     private val _logText = MutableStateFlow("")
-    val logText: StateFlow<String> = _logText
 
     // 为每个配置创建一个日志流
     private val _configLogs = MutableStateFlow(mutableMapOf<FrpConfig, String>())
     val configLogs = _configLogs.asStateFlow()
-
-    fun clearLog() {
-        _logText.value = ""
-    }
 
     fun clearConfigLog(config: FrpConfig) {
         val logFile = config.getLogFile(this)
@@ -165,13 +158,6 @@ class ShellService : LifecycleService() {
     // Binder given to clients
     private val binder = LocalBinder()
 
-    // Random number generator
-    private val mGenerator = Random()
-
-    /** method for clients  */
-    val randomNumber: Int
-        get() = mGenerator.nextInt(100)
-
     /**
      * Class used for the client Binder.  Because we know this service always
      * runs in the same process as its clients, we don't need to deal with IPC.
@@ -291,7 +277,7 @@ class ShellService : LifecycleService() {
     }
 
     private fun stopFrp(config: FrpConfig) {
-        val thread = _processThreads.value.get(config)
+        val thread = _processThreads.value[config]
 //        thread?.interrupt()
         thread?.stopProcess()
         _processThreads.update {
@@ -311,12 +297,12 @@ class ShellService : LifecycleService() {
     }
 
     private fun runCommand(command: List<String>, dir: File, config: FrpConfig): ShellThread {
-        val process_thread = ShellThread(command, dir) { logLine ->
+        val processThread = ShellThread(command, dir) { logLine ->
             _logText.value += logLine + "\n"
             appendToConfigLog(config, logLine)
         }
-        process_thread.start()
-        return process_thread;
+        processThread.start()
+        return processThread
     }
 
     private fun showNotification(): Notification {
@@ -350,11 +336,11 @@ class ShellService : LifecycleService() {
                 "停止",
                 stopAllPendingIntent
             )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return notification.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            notification.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
                 .build()
         } else {
-            return notification.build()
+            notification.build()
         }
     }
 }

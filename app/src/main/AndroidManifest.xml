@@ -24,6 +24,30 @@
         <activity android:name=".AboutActivity" />
         <activity android:name=".SettingsActivity" />
 
+        <!-- Tasker Plugin Action -->
+        <activity
+            android:name=".tasker.ActivityConfigStartFrp"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Start FRP Config">
+            <intent-filter>
+                <action android:name="com.twofortyfouram.locale.intent.action.EDIT_SETTING" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Tasker Plugin Action - Stop FRP -->
+        <activity
+            android:name=".tasker.ActivityConfigStopFrp"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Stop FRP Config">
+            <intent-filter>
+                <action android:name="com.twofortyfouram.locale.intent.action.EDIT_SETTING" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <meta-data
             android:name="Website"
             android:value="https://acedroidx.github.io/?a=frp" />
@@ -41,7 +65,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleInstance">
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

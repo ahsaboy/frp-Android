@@ -22,4 +22,14 @@
     <string name="confirm">确认</string>
     <string name="dismiss">取消</string>
     <string name="create_frp_select">选择要创建的frp类型</string>
+    <string name="tasker_config_title">Tasker FRP 动作</string>
+    <string name="tasker_config_description">此操作将启动指定的 FRP 配置。 使用方法：在 Tasker 中设置以下变量： • %frpType- 设置为 \"frpc\" 或 \"frps\" • %configFileName- 配置文件的名称</string>
+    <string name="tasker_select_config_title">选择FRP配置</string>
+    <string name="tasker_select_type">选择FRP类型：</string>
+    <string name="tasker_select_config">选择配置文件</string>
+    <string name="tasker_no_config">没有找到配置文件，请先在应用里创建一个配置。</string>
+    <string name="tasker_stop_config_title">停止 FRP 配置</string>
+    <string name="tasker_stop_all">停止所有运行中的配置</string>
+    <string name="permission_notification_title">需要通知权限</string>
+    <string name="permission_notification_message">应用需要通知权限来显示后台服务状态。请授予权限以确保功能正常运行。</string>
 </resources>

@@ -41,8 +41,8 @@ android {
         minSdk = 23
         targetSdk = 35
         compileSdk = 35
-        versionCode = 13
-        versionName = "1.3.9"
+        versionCode = 15
+        versionName = "1.4.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -94,6 +94,16 @@ android {
         }
     }
     namespace = "io.github.acedroidx.frp"
+
+    applicationVariants.all {
+        outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            val abiFilter = output.filters.find { it.filterType == "ABI" }
+            val abi = abiFilter?.identifier ?: "universal"
+            val versionName = defaultConfig.versionName
+            output.outputFileName = "frp-for-android_${abi}_${versionName}.apk"
+        }
+    }
 }
 
 dependencies {
@@ -119,6 +129,9 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     // Optional - Integration with activities
     implementation("androidx.activity:activity-compose")
+
+    // Tasker Plugin Library
+    implementation("com.joaomgcd:taskerpluginlibrary:0.4.10")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

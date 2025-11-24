@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class SettingsActivity : ComponentActivity() {
     private val isStartup = MutableStateFlow(false)
     private val themeMode = MutableStateFlow("跟随系统")
+    private val allowTasker = MutableStateFlow(true)
     private lateinit var preferences: SharedPreferences
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +56,9 @@ class SettingsActivity : ComponentActivity() {
         // 读取主题设置，默认为跟随系统
         val savedTheme = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
         themeMode.value = savedTheme
+
+        // 读取 Tasker 权限设置，默认为允许
+        allowTasker.value = preferences.getBoolean(PreferencesKey.ALLOW_TASKER, true)
 
         enableEdgeToEdge()
         setContent {
@@ -92,6 +96,7 @@ class SettingsActivity : ComponentActivity() {
     fun SettingsContent() {
         val isAutoStart by isStartup.collectAsStateWithLifecycle(false)
         val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
+        val isTaskerAllowed by allowTasker.collectAsStateWithLifecycle(true)
 
         Column(
             modifier = Modifier
@@ -123,6 +128,20 @@ class SettingsActivity : ComponentActivity() {
                     editor.putString(PreferencesKey.THEME_MODE, newTheme)
                     editor.apply()
                     themeMode.value = newTheme
+                }
+            )
+
+            HorizontalDivider()
+
+            // 允许 Tasker 调用设置项
+            SettingItemWithSwitch(
+                title = "允许 Tasker 调用",
+                checked = isTaskerAllowed,
+                onCheckedChange = { checked ->
+                    val editor = preferences.edit()
+                    editor.putBoolean(PreferencesKey.ALLOW_TASKER, checked)
+                    editor.apply()
+                    allowTasker.value = checked
                 }
             )
 

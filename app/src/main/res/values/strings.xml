@@ -23,4 +23,14 @@
     <string name="confirm">Confirm</string>
     <string name="dismiss">Dismiss</string>
     <string name="create_frp_select">Select the type of frp to create</string>
+    <string name="tasker_config_title">Tasker FRP Action</string>
+    <string name="tasker_config_description">This action will start the specified FRP configuration.  To use: Set variables in Tasker: • %frpType - \"frpc\" or \"frps\" • %configFileName - name of config file</string>
+    <string name="tasker_select_config_title">Select FRP Configuration</string>
+    <string name="tasker_select_type">Select FRP Type:</string>
+    <string name="tasker_select_config">Select Configuration File:</string>
+    <string name="tasker_no_config">No configuration files found. Please create a configuration first in the main app.</string>
+    <string name="tasker_stop_config_title">Stop FRP Configuration</string>
+    <string name="tasker_stop_all">Stop All Running Configs</string>
+    <string name="permission_notification_title">Notification Permission Required</string>
+    <string name="permission_notification_message">This app needs notification permission to show background service status. Please grant the permission to ensure proper functionality.</string>
 </resources>
