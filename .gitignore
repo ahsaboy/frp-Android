@@ -88,3 +88,5 @@ keystore.properties
 .kotlin/
 .claude/
 *.tar.gz
+baselineProfiles/
+TASKER_PLUGIN_DEVELOPMENT_GUIDE.md
