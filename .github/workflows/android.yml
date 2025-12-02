@@ -2,6 +2,8 @@ name: Android CI
 
 on:
   push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -38,8 +40,33 @@ jobs:
           STORE_FILE: ${{ secrets.STORE_FILE }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
 
-      - name: Upload artifact
+      - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
-          name: frp-Android-artifact
-          path: app/build/outputs/apk/release/*.apk
+          name: frp-Android-arm64-v8a
+          path: app/build/outputs/apk/release/*arm64-v8a*.apk
+
+      - name: Upload armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: frp-Android-armeabi-v7a
+          path: app/build/outputs/apk/release/*armeabi-v7a*.apk
+
+      - name: Upload x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: frp-Android-x86_64
+          path: app/build/outputs/apk/release/*x86_64*.apk
+
+      - name: Upload universal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: frp-Android-universal
+          path: app/build/outputs/apk/release/*universal*.apk
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
