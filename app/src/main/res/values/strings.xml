@@ -33,4 +33,10 @@
     <string name="tasker_stop_all">Stop All Running Configs</string>
     <string name="permission_notification_title">Notification Permission Required</string>
     <string name="permission_notification_message">This app needs notification permission to show background service status. Please grant the permission to ensure proper functionality.</string>
+    <string name="quick_tile_label">FRP Toggle</string>
+    <string name="quick_tile_config">Quick Tile Config</string>
+    <string name="quick_tile_not_selected">Not Selected</string>
+    <string name="quick_tile_not_configured">Not Configured</string>
+    <string name="quick_tile_running">Running</string>
+    <string name="quick_tile_stopped">Stopped</string>
 </resources>

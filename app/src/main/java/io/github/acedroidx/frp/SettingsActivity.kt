@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,7 +46,11 @@ class SettingsActivity : ComponentActivity() {
     private val themeMode = MutableStateFlow("跟随系统")
     private val allowTasker = MutableStateFlow(true)
     private val excludeFromRecents = MutableStateFlow(false)
+    private val quickTileConfig = MutableStateFlow<FrpConfig?>(null)
     private lateinit var preferences: SharedPreferences
+
+    // 配置列表
+    private val allConfigs = MutableStateFlow<List<FrpConfig>>(emptyList())
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,6 +68,12 @@ class SettingsActivity : ComponentActivity() {
 
         // 读取"最近任务中排除"设置，默认为不排除
         excludeFromRecents.value = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
+
+        // 加载配置列表
+        loadConfigList()
+
+        // 读取快捷开关配置
+        loadQuickTileConfig()
 
         enableEdgeToEdge()
         setContent {
@@ -102,6 +113,8 @@ class SettingsActivity : ComponentActivity() {
         val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
         val isTaskerAllowed by allowTasker.collectAsStateWithLifecycle(true)
         val isExcludeFromRecents by excludeFromRecents.collectAsStateWithLifecycle(false)
+        val currentQuickTileConfig by quickTileConfig.collectAsStateWithLifecycle(null)
+        val configs by allConfigs.collectAsStateWithLifecycle(emptyList())
 
         Column(
             modifier = Modifier
@@ -133,6 +146,27 @@ class SettingsActivity : ComponentActivity() {
                     editor.putString(PreferencesKey.THEME_MODE, newTheme)
                     editor.apply()
                     themeMode.value = newTheme
+                }
+            )
+
+            HorizontalDivider()
+
+            // 快捷开关配置选择
+            SettingItemWithConfigSelector(
+                title = stringResource(R.string.quick_tile_config),
+                currentConfig = currentQuickTileConfig,
+                configs = configs,
+                onConfigChange = { config ->
+                    val editor = preferences.edit()
+                    if (config != null) {
+                        editor.putString(PreferencesKey.QUICK_TILE_CONFIG_TYPE, config.type.name)
+                        editor.putString(PreferencesKey.QUICK_TILE_CONFIG_NAME, config.fileName)
+                    } else {
+                        editor.remove(PreferencesKey.QUICK_TILE_CONFIG_TYPE)
+                        editor.remove(PreferencesKey.QUICK_TILE_CONFIG_NAME)
+                    }
+                    editor.apply()
+                    quickTileConfig.value = config
                 }
             )
 
@@ -286,6 +320,102 @@ class SettingsActivity : ComponentActivity() {
                 contentDescription = null,
                 modifier = Modifier.padding(start = 8.dp)
             )
+        }
+    }
+
+    @Composable
+    fun SettingItemWithConfigSelector(
+        title: String,
+        currentConfig: FrpConfig?,
+        configs: List<FrpConfig>,
+        onConfigChange: (FrpConfig?) -> Unit
+    ) {
+        var expanded by remember { mutableStateOf(false) }
+
+        val displayValue = currentConfig?.let {
+            "${it.type.typeName}: ${it.fileName.removeSuffix(".toml")}"
+        } ?: stringResource(R.string.quick_tile_not_selected)
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = true }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Box {
+                Text(
+                    text = displayValue,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    // 不选择选项
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.quick_tile_not_selected)) },
+                        onClick = {
+                            onConfigChange(null)
+                            expanded = false
+                        }
+                    )
+                    // 配置列表
+                    configs.forEach { config ->
+                        DropdownMenuItem(
+                            text = {
+                                Text("${config.type.typeName}: ${config.fileName.removeSuffix(".toml")}")
+                            },
+                            onClick = {
+                                onConfigChange(config)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadConfigList() {
+        val frpcConfigs = (FrpType.FRPC.getDir(this).list()?.toList() ?: emptyList()).map {
+            FrpConfig(FrpType.FRPC, it)
+        }
+        val frpsConfigs = (FrpType.FRPS.getDir(this).list()?.toList() ?: emptyList()).map {
+            FrpConfig(FrpType.FRPS, it)
+        }
+        allConfigs.value = frpcConfigs + frpsConfigs
+    }
+
+    private fun loadQuickTileConfig() {
+        val configType = preferences.getString(PreferencesKey.QUICK_TILE_CONFIG_TYPE, null)
+        val configName = preferences.getString(PreferencesKey.QUICK_TILE_CONFIG_NAME, null)
+
+        if (configType != null && configName != null) {
+            try {
+                val type = FrpType.valueOf(configType)
+                val config = FrpConfig(type, configName)
+                // 检查配置文件是否存在
+                if (config.getFile(this).exists()) {
+                    quickTileConfig.value = config
+                } else {
+                    // 配置文件不存在，清除设置
+                    preferences.edit().apply {
+                        remove(PreferencesKey.QUICK_TILE_CONFIG_TYPE)
+                        remove(PreferencesKey.QUICK_TILE_CONFIG_NAME)
+                        apply()
+                    }
+                    quickTileConfig.value = null
+                }
+            } catch (e: IllegalArgumentException) {
+                quickTileConfig.value = null
+            }
         }
     }
 }

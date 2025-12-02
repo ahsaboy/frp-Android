@@ -32,4 +32,10 @@
     <string name="tasker_stop_all">停止所有运行中的配置</string>
     <string name="permission_notification_title">需要通知权限</string>
     <string name="permission_notification_message">应用需要通知权限来显示后台服务状态。请授予权限以确保功能正常运行。</string>
+    <string name="quick_tile_label">FRP 快捷开关</string>
+    <string name="quick_tile_config">快捷开关配置</string>
+    <string name="quick_tile_not_selected">未选择</string>
+    <string name="quick_tile_not_configured">未配置</string>
+    <string name="quick_tile_running">运行中</string>
+    <string name="quick_tile_stopped">已停止</string>
 </resources>
