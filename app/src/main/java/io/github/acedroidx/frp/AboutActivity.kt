@@ -89,9 +89,26 @@ class AboutActivity : ComponentActivity() {
     @Composable
     fun MainContent() {
         val uriHandler = LocalUriHandler.current
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // 当前仓库（二次开发）
+            Text("本仓库（二次开发）：", style = MaterialTheme.typography.titleMedium)
             Text(buildAnnotatedString {
-                append("Github: ")
+                val link = LinkAnnotation.Url(
+                    "https://github.com/ahsaboy/frp-Android",
+                    TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
+                ) {
+                    val url = (it as LinkAnnotation.Url).url
+                    uriHandler.openUri(url)
+                }
+                withLink(link) { append("https://github.com/ahsaboy/frp-Android") }
+            })
+
+            // 原 App 作者
+            Text("原 App 作者 (AceDroidX)：", style = MaterialTheme.typography.titleMedium)
+            Text(buildAnnotatedString {
                 val link = LinkAnnotation.Url(
                     "https://github.com/AceDroidX/frp-Android",
                     TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
@@ -101,8 +118,10 @@ class AboutActivity : ComponentActivity() {
                 }
                 withLink(link) { append("https://github.com/AceDroidX/frp-Android") }
             })
+
+            // frp 原作者
+            Text("frp 原作者 (fatedier)：", style = MaterialTheme.typography.titleMedium)
             Text(buildAnnotatedString {
-                append("Github: ")
                 val link = LinkAnnotation.Url(
                     "https://github.com/fatedier/frp",
                     TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
