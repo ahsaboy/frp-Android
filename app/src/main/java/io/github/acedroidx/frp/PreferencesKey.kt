@@ -7,4 +7,5 @@ object PreferencesKey {
     const val FRP_VERSION = "frp_version"
     const val THEME_MODE = "theme_mode"
     const val ALLOW_TASKER = "allow_tasker"
+    const val EXCLUDE_FROM_RECENTS = "exclude_from_recents"
 }

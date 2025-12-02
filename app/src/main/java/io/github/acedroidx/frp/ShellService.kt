@@ -197,6 +197,12 @@ class ShellService : LifecycleService() {
             val mainActivityIntent = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 putExtra("EXIT_APP", true)
+                // 检查是否需要从最近任务中排除
+                val preferences = getSharedPreferences("data", MODE_PRIVATE)
+                val excludeFromRecents = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
+                if (excludeFromRecents) {
+                    addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+                }
             }
             startActivity(mainActivityIntent)
 
@@ -308,6 +314,12 @@ class ShellService : LifecycleService() {
     private fun showNotification(): Notification {
         val pendingIntent: PendingIntent =
             Intent(this, MainActivity::class.java).let { notificationIntent ->
+                // 检查是否需要从最近任务中排除
+                val preferences = getSharedPreferences("data", MODE_PRIVATE)
+                val excludeFromRecents = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
+                if (excludeFromRecents) {
+                    notificationIntent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+                }
                 PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
             }
 

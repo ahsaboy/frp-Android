@@ -44,6 +44,7 @@ class SettingsActivity : ComponentActivity() {
     private val isStartup = MutableStateFlow(false)
     private val themeMode = MutableStateFlow("跟随系统")
     private val allowTasker = MutableStateFlow(true)
+    private val excludeFromRecents = MutableStateFlow(false)
     private lateinit var preferences: SharedPreferences
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -59,6 +60,9 @@ class SettingsActivity : ComponentActivity() {
 
         // 读取 Tasker 权限设置，默认为允许
         allowTasker.value = preferences.getBoolean(PreferencesKey.ALLOW_TASKER, true)
+
+        // 读取"最近任务中排除"设置，默认为不排除
+        excludeFromRecents.value = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
 
         enableEdgeToEdge()
         setContent {
@@ -97,6 +101,7 @@ class SettingsActivity : ComponentActivity() {
         val isAutoStart by isStartup.collectAsStateWithLifecycle(false)
         val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
         val isTaskerAllowed by allowTasker.collectAsStateWithLifecycle(true)
+        val isExcludeFromRecents by excludeFromRecents.collectAsStateWithLifecycle(false)
 
         Column(
             modifier = Modifier
@@ -142,6 +147,39 @@ class SettingsActivity : ComponentActivity() {
                     editor.putBoolean(PreferencesKey.ALLOW_TASKER, checked)
                     editor.apply()
                     allowTasker.value = checked
+                }
+            )
+
+            HorizontalDivider()
+
+            // 最近任务中排除设置项
+            SettingItemWithSwitch(
+                title = "最近任务中排除",
+                checked = isExcludeFromRecents,
+                onCheckedChange = { checked ->
+                    val editor = preferences.edit()
+                    editor.putBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, checked)
+                    editor.apply()
+                    excludeFromRecents.value = checked
+
+                    // 立即应用设置，不需要重启
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                        try {
+                            val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+                            val appTasks = am.appTasks
+                            android.util.Log.d("SettingsActivity", "appTasks size: ${appTasks.size}")
+                            if (appTasks.isNotEmpty()) {
+                                for (task in appTasks) {
+                                    task.setExcludeFromRecents(checked)
+                                    android.util.Log.d("SettingsActivity", "Set excludeFromRecents to $checked")
+                                }
+                            } else {
+                                android.util.Log.w("SettingsActivity", "appTasks is empty")
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("SettingsActivity", "Failed to set excludeFromRecents: ${e.message}")
+                        }
+                    }
                 }
             )
 

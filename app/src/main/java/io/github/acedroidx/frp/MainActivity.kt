@@ -170,6 +170,23 @@ class MainActivity : ComponentActivity() {
         }
 
         preferences = getSharedPreferences("data", MODE_PRIVATE)
+
+        // 应用"最近任务中排除"设置
+        val excludeFromRecents = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+                val appTasks = am.appTasks
+                if (appTasks.isNotEmpty()) {
+                    for (task in appTasks) {
+                        task.setExcludeFromRecents(excludeFromRecents)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to set excludeFromRecents: ${e.message}")
+            }
+        }
+
         isStartup.value = preferences.getBoolean(PreferencesKey.AUTO_START, false)
         frpVersion.value = preferences.getString(PreferencesKey.FRP_VERSION, "Loading...") ?: "Loading..."
         themeMode.value = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
@@ -538,6 +555,22 @@ class MainActivity : ComponentActivity() {
         // 从 SharedPreferences 重新加载主题设置
         val savedTheme = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
         themeMode.value = savedTheme
+
+        // 重新应用"最近任务中排除"设置
+        val excludeFromRecents = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+                val appTasks = am.appTasks
+                if (appTasks.isNotEmpty()) {
+                    for (task in appTasks) {
+                        task.setExcludeFromRecents(excludeFromRecents)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to set excludeFromRecents in onResume: ${e.message}")
+            }
+        }
 
         // 重新检查权限状态（用户可能从设置页面返回）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
