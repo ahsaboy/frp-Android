@@ -41,8 +41,8 @@ android {
         minSdk = 23
         targetSdk = 35
         compileSdk = 35
-        versionCode = 16
-        versionName = "1.4.3"
+        versionCode = 17
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -101,7 +101,7 @@ android {
             val abiFilter = output.filters.find { it.filterType == "ABI" }
             val abi = abiFilter?.identifier ?: "universal"
             val versionName = defaultConfig.versionName
-            output.outputFileName = "frp-for-android_${abi}_${versionName}.apk"
+            output.outputFileName = "FRP_${abi}_${versionName}.apk"
         }
     }
 }
