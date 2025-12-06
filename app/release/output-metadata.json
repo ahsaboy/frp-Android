@@ -11,22 +11,9 @@
       "type": "UNIVERSAL",
       "filters": [],
       "attributes": [],
-      "versionCode": 16,
-      "versionName": "1.4.3",
-      "outputFile": "frp-for-android_universal_1.4.3.apk"
-    },
-    {
-      "type": "ONE_OF_MANY",
-      "filters": [
-        {
-          "filterType": "ABI",
-          "value": "armeabi-v7a"
-        }
-      ],
-      "attributes": [],
-      "versionCode": 16,
-      "versionName": "1.4.3",
-      "outputFile": "frp-for-android_armeabi-v7a_1.4.3.apk"
+      "versionCode": 19,
+      "versionName": "1.5.2",
+      "outputFile": "FRP_universal_1.5.2.apk"
     },
     {
       "type": "ONE_OF_MANY",
@@ -37,9 +24,9 @@
         }
       ],
       "attributes": [],
-      "versionCode": 16,
-      "versionName": "1.4.3",
-      "outputFile": "frp-for-android_arm64-v8a_1.4.3.apk"
+      "versionCode": 19,
+      "versionName": "1.5.2",
+      "outputFile": "FRP_arm64-v8a_1.5.2.apk"
     },
     {
       "type": "ONE_OF_MANY",
@@ -50,9 +37,22 @@
         }
       ],
       "attributes": [],
-      "versionCode": 16,
-      "versionName": "1.4.3",
-      "outputFile": "frp-for-android_x86_64_1.4.3.apk"
+      "versionCode": 19,
+      "versionName": "1.5.2",
+      "outputFile": "FRP_x86_64_1.5.2.apk"
+    },
+    {
+      "type": "ONE_OF_MANY",
+      "filters": [
+        {
+          "filterType": "ABI",
+          "value": "armeabi-v7a"
+        }
+      ],
+      "attributes": [],
+      "versionCode": 19,
+      "versionName": "1.5.2",
+      "outputFile": "FRP_armeabi-v7a_1.5.2.apk"
     }
   ],
   "elementType": "File",
@@ -61,20 +61,20 @@
       "minApi": 28,
       "maxApi": 30,
       "baselineProfiles": [
-        "baselineProfiles/1/frp-for-android_universal_1.4.3.dm",
-        "baselineProfiles/1/frp-for-android_armeabi-v7a_1.4.3.dm",
-        "baselineProfiles/1/frp-for-android_arm64-v8a_1.4.3.dm",
-        "baselineProfiles/1/frp-for-android_x86_64_1.4.3.dm"
+        "baselineProfiles/1/FRP_universal_1.5.2.dm",
+        "baselineProfiles/1/FRP_arm64-v8a_1.5.2.dm",
+        "baselineProfiles/1/FRP_x86_64_1.5.2.dm",
+        "baselineProfiles/1/FRP_armeabi-v7a_1.5.2.dm"
       ]
     },
     {
       "minApi": 31,
       "maxApi": 2147483647,
       "baselineProfiles": [
-        "baselineProfiles/0/frp-for-android_universal_1.4.3.dm",
-        "baselineProfiles/0/frp-for-android_armeabi-v7a_1.4.3.dm",
-        "baselineProfiles/0/frp-for-android_arm64-v8a_1.4.3.dm",
-        "baselineProfiles/0/frp-for-android_x86_64_1.4.3.dm"
+        "baselineProfiles/0/FRP_universal_1.5.2.dm",
+        "baselineProfiles/0/FRP_arm64-v8a_1.5.2.dm",
+        "baselineProfiles/0/FRP_x86_64_1.5.2.dm",
+        "baselineProfiles/0/FRP_armeabi-v7a_1.5.2.dm"
       ]
     }
   ],

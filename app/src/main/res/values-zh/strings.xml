@@ -38,4 +38,19 @@
     <string name="quick_tile_not_configured">未配置</string>
     <string name="quick_tile_running">运行中</string>
     <string name="quick_tile_stopped">已停止</string>
+    <string name="export_config">导出配置</string>
+    <string name="export_config_dialog_title">导出配置</string>
+    <string name="export_config_file_name">文件名</string>
+    <string name="export_config_success">已保存至 %s</string>
+    <string name="export_config_failed">导出失败：%s</string>
+    <string name="import_config">导入配置</string>
+    <string name="import_zip">导入 ZIP</string>
+    <string name="import_toml">导入 TOML</string>
+    <string name="import_select_type">选择 FRP 类型</string>
+    <string name="import_select_type_desc">选择此配置属于哪种类型：</string>
+    <string name="import_success">导入成功</string>
+    <string name="import_failed">导入失败：%s</string>
+    <string name="import_failed_read">无法读取文件</string>
+    <string name="import_failed_no_folder">导入失败：ZIP 中未找到 FRPC 或 FRPS 文件夹</string>
+    <string name="import_failed_not_toml">导入失败：文件必须是 .toml 格式</string>
 </resources>

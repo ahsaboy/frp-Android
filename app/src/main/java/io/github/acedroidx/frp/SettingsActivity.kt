@@ -1,11 +1,18 @@
 package io.github.acedroidx.frp
 
+import android.Manifest
+import android.app.ActivityManager
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,15 +22,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
@@ -33,13 +44,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import io.github.acedroidx.frp.ui.theme.FrpTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class SettingsActivity : ComponentActivity() {
     private val isStartup = MutableStateFlow(false)
@@ -47,10 +69,22 @@ class SettingsActivity : ComponentActivity() {
     private val allowTasker = MutableStateFlow(true)
     private val excludeFromRecents = MutableStateFlow(false)
     private val quickTileConfig = MutableStateFlow<FrpConfig?>(null)
+    private val exportStatusMessage = MutableStateFlow<String?>(null)
     private lateinit var preferences: SharedPreferences
 
     // 配置列表
     private val allConfigs = MutableStateFlow<List<FrpConfig>>(emptyList())
+
+    // 存储权限请求
+    private val storagePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            showExportDialog.value = true
+        }
+    }
+
+    private val showExportDialog = mutableStateOf(false)
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -102,6 +136,11 @@ class SettingsActivity : ComponentActivity() {
                         SettingsContent()
                     }
                 }
+
+                // 导出配置对话框
+                if (showExportDialog.value) {
+                    ExportConfigDialog(onDismiss = { showExportDialog.value = false })
+                }
             }
         }
     }
@@ -119,7 +158,12 @@ class SettingsActivity : ComponentActivity() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(
+                    start = 10.dp,
+                    top = 2.dp,
+                    end = 10.dp,
+                    bottom = 2.dp
+                ),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             // 开机自启动设置项
@@ -197,23 +241,35 @@ class SettingsActivity : ComponentActivity() {
                     excludeFromRecents.value = checked
 
                     // 立即应用设置，不需要重启
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                         try {
-                            val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+                            val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
                             val appTasks = am.appTasks
-                            android.util.Log.d("SettingsActivity", "appTasks size: ${appTasks.size}")
+                            Log.d("SettingsActivity", "appTasks size: ${appTasks.size}")
                             if (appTasks.isNotEmpty()) {
                                 for (task in appTasks) {
                                     task.setExcludeFromRecents(checked)
-                                    android.util.Log.d("SettingsActivity", "Set excludeFromRecents to $checked")
+                                    Log.d("SettingsActivity", "Set excludeFromRecents to $checked")
                                 }
                             } else {
-                                android.util.Log.w("SettingsActivity", "appTasks is empty")
+                                Log.w("SettingsActivity", "appTasks is empty")
                             }
                         } catch (e: Exception) {
-                            android.util.Log.e("SettingsActivity", "Failed to set excludeFromRecents: ${e.message}")
+                            Log.e("SettingsActivity", "Failed to set excludeFromRecents: ${e.message}")
                         }
                     }
+                }
+            )
+
+            HorizontalDivider()
+
+            // 导出配置设置项
+            val exportStatus by exportStatusMessage.collectAsStateWithLifecycle(null)
+            SettingItemExportConfig(
+                title = stringResource(R.string.export_config),
+                statusMessage = exportStatus,
+                onClick = {
+                    requestExportConfig()
                 }
             )
 
@@ -238,7 +294,7 @@ class SettingsActivity : ComponentActivity() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -413,9 +469,159 @@ class SettingsActivity : ComponentActivity() {
                     }
                     quickTileConfig.value = null
                 }
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 quickTileConfig.value = null
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // 清除导出状态消息
+        exportStatusMessage.value = null
+    }
+
+    @Composable
+    fun SettingItemExportConfig(
+        title: String,
+        statusMessage: String?,
+        onClick: () -> Unit
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onClick() }
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_export),
+                    contentDescription = null,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            if (statusMessage != null) {
+                Text(
+                    text = statusMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun ExportConfigDialog(onDismiss: () -> Unit) {
+        var fileName by remember { mutableStateOf("FRP_config") }
+
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.export_config_dialog_title)) },
+            text = {
+                OutlinedTextField(
+                    value = fileName,
+                    onValueChange = { fileName = it },
+                    label = { Text(stringResource(R.string.export_config_file_name)) },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        exportConfigs(fileName)
+                        onDismiss()
+                    }
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.dismiss))
+                }
+            }
+        )
+    }
+
+    private fun requestExportConfig() {
+        // Android 13+ 不需要存储权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            showExportDialog.value = true
+        } else {
+            // 检查权限
+            when {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ) == PackageManager.PERMISSION_GRANTED -> {
+                    showExportDialog.value = true
+                }
+                else -> {
+                    storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                }
+            }
+        }
+    }
+
+    private fun exportConfigs(fileName: String) {
+        lifecycleScope.launch {
+            try {
+                val zipFile = withContext(Dispatchers.IO) {
+                    createConfigZip(fileName)
+                }
+                exportStatusMessage.value = getString(R.string.export_config_success, zipFile.absolutePath)
+            } catch (e: Exception) {
+                exportStatusMessage.value = getString(R.string.export_config_failed, e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    private suspend fun createConfigZip(fileName: String): File = withContext(Dispatchers.IO) {
+        val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val zipFile = File(downloadDir, "$fileName.zip")
+
+        ZipOutputStream(FileOutputStream(zipFile)).use { zipOut ->
+            // 导出 FRPC 配置
+            val frpcDir = FrpType.FRPC.getDir(this@SettingsActivity)
+            if (frpcDir.exists()) {
+                frpcDir.listFiles()?.forEach { file ->
+                    if (file.isFile && file.name.endsWith(".toml")) {
+                        val entry = ZipEntry("FRPC/${file.name}")
+                        zipOut.putNextEntry(entry)
+                        FileInputStream(file).use { input ->
+                            input.copyTo(zipOut)
+                        }
+                        zipOut.closeEntry()
+                    }
+                }
+            }
+
+            // 导出 FRPS 配置
+            val frpsDir = FrpType.FRPS.getDir(this@SettingsActivity)
+            if (frpsDir.exists()) {
+                frpsDir.listFiles()?.forEach { file ->
+                    if (file.isFile && file.name.endsWith(".toml")) {
+                        val entry = ZipEntry("FRPS/${file.name}")
+                        zipOut.putNextEntry(entry)
+                        FileInputStream(file).use { input ->
+                            input.copyTo(zipOut)
+                        }
+                        zipOut.closeEntry()
+                    }
+                }
+            }
+        }
+
+        zipFile
     }
 }

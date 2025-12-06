@@ -78,10 +78,16 @@ import io.github.acedroidx.frp.ui.theme.FrpTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.OutlinedButton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.ZipInputStream
 
 
 class MainActivity : ComponentActivity() {
@@ -98,6 +104,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var mService: ShellService
     private var mBound: Boolean = false
 
+    private val showImportTypeDialog = mutableStateOf(false)
+    private var pendingImportFile: Uri? = null
+
     // 权限请求启动器
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -107,6 +116,27 @@ class MainActivity : ComponentActivity() {
             Log.w("adx", "Notification permission denied")
         } else {
             Log.d("adx", "Notification permission granted")
+        }
+    }
+
+    // 文件选择器 - ZIP 文件
+    private val zipFileLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            lifecycleScope.launch {
+                importZipFile(it)
+            }
+        }
+    }
+
+    // 文件选择器 - TOML 文件
+    private val tomlFileLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            pendingImportFile = it
+            showImportTypeDialog.value = true
         }
     }
 
@@ -251,6 +281,11 @@ class MainActivity : ComponentActivity() {
                 }
                 if (openDialog.value) {
                     CreateConfigDialog { openDialog.value = false }
+                }
+
+                // 导入类型选择对话框
+                if (showImportTypeDialog.value) {
+                    ImportTypeDialog { showImportTypeDialog.value = false }
                 }
 
                 // 显示权限提示
@@ -534,6 +569,7 @@ class MainActivity : ComponentActivity() {
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.titleLarge
                     )
+                    // 创建配置按钮
                     Row(
                         horizontalArrangement = Arrangement.SpaceAround,
                         modifier = Modifier.fillMaxWidth()
@@ -545,9 +581,81 @@ class MainActivity : ComponentActivity() {
                             Text("frps")
                         }
                     }
+
+                    // 导入配置按钮
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.import_config),
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedButton(onClick = {
+                                zipFileLauncher.launch("application/zip")
+                                onClose()
+                            }) {
+                                Text(stringResource(R.string.import_zip))
+                            }
+                            OutlinedButton(onClick = {
+                                tomlFileLauncher.launch("*/*")
+                                onClose()
+                            }) {
+                                Text(stringResource(R.string.import_toml))
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun ImportTypeDialog(onDismiss: () -> Unit) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.import_select_type)) },
+            text = { Text(stringResource(R.string.import_select_type_desc)) },
+            confirmButton = {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TextButton(onClick = {
+                        pendingImportFile?.let { uri ->
+                            lifecycleScope.launch {
+                                importTomlFile(uri, FrpType.FRPC)
+                            }
+                        }
+                        onDismiss()
+                    }) {
+                        Text("FRPC")
+                    }
+                    TextButton(onClick = {
+                        pendingImportFile?.let { uri ->
+                            lifecycleScope.launch {
+                                importTomlFile(uri, FrpType.FRPS)
+                            }
+                        }
+                        onDismiss()
+                    }) {
+                        Text("FRPS")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.dismiss))
+                }
+            }
+        )
     }
 
     override fun onResume() {
@@ -727,5 +835,174 @@ class MainActivity : ComponentActivity() {
         preferences.edit {
             putStringSet(PreferencesKey.AUTO_START_FRPS_LIST, frpsAutoStartList?.toSet())
         }
+    }
+
+    private suspend fun importZipFile(uri: Uri) = withContext(Dispatchers.IO) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            if (inputStream == null) {
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.import_failed_read),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+                return@withContext
+            }
+
+            val zipInputStream = ZipInputStream(inputStream)
+            var hasValidFolder = false
+            var entry = zipInputStream.nextEntry
+
+            while (entry != null) {
+                val name = entry.name
+
+                // 检查是否在 FRPC 或 FRPS 文件夹中
+                val (type, fileName) = when {
+                    name.startsWith("FRPC/") && name.endsWith(".toml") -> {
+                        hasValidFolder = true
+                        FrpType.FRPC to name.substring(5)
+                    }
+                    name.startsWith("FRPS/") && name.endsWith(".toml") -> {
+                        hasValidFolder = true
+                        FrpType.FRPS to name.substring(5)
+                    }
+                    else -> {
+                        zipInputStream.closeEntry()
+                        entry = zipInputStream.nextEntry
+                        continue
+                    }
+                }
+
+                // 生成唯一文件名（增量导入，避免覆盖）
+                val targetDir = type.getDir(this@MainActivity)
+                val uniqueFileName = generateUniqueFileName(targetDir, fileName)
+                val targetFile = File(targetDir, uniqueFileName)
+
+                // 写入文件
+                FileOutputStream(targetFile).use { output ->
+                    zipInputStream.copyTo(output)
+                }
+
+                zipInputStream.closeEntry()
+                entry = zipInputStream.nextEntry
+            }
+
+            zipInputStream.close()
+
+            if (!hasValidFolder) {
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.import_failed_no_folder),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    updateConfigList()
+                    android.widget.Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.import_success),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.import_failed, e.message ?: "Unknown error"),
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private suspend fun importTomlFile(uri: Uri, type: FrpType) = withContext(Dispatchers.IO) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            if (inputStream == null) {
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.import_failed_read),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+                return@withContext
+            }
+
+            // 获取文件名
+            var fileName = getFileNameFromUri(uri) ?: "imported_${System.currentTimeMillis()}.toml"
+
+            // 检查文件后缀
+            if (!fileName.endsWith(".toml", ignoreCase = true)) {
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.import_failed_not_toml),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+                inputStream.close()
+                return@withContext
+            }
+
+            // 生成唯一文件名
+            val targetDir = type.getDir(this@MainActivity)
+            val uniqueFileName = generateUniqueFileName(targetDir, fileName)
+            val targetFile = File(targetDir, uniqueFileName)
+
+            // 写入文件
+            FileOutputStream(targetFile).use { output ->
+                inputStream.copyTo(output)
+            }
+
+            inputStream.close()
+
+            withContext(Dispatchers.Main) {
+                updateConfigList()
+                android.widget.Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.import_success),
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.import_failed, e.message ?: "Unknown error"),
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun getFileNameFromUri(uri: Uri): String? {
+        var fileName: String? = null
+        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0 && cursor.moveToFirst()) {
+                fileName = cursor.getString(nameIndex)
+            }
+        }
+        return fileName
+    }
+
+    private fun generateUniqueFileName(dir: File, fileName: String): String {
+        var uniqueName = fileName
+        var counter = 1
+
+        while (File(dir, uniqueName).exists()) {
+            val nameWithoutExt = fileName.substringBeforeLast(".")
+            val ext = fileName.substringAfterLast(".")
+            uniqueName = "${nameWithoutExt}_${counter}.$ext"
+            counter++
+        }
+
+        return uniqueName
     }
 }
