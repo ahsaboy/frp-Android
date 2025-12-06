@@ -39,4 +39,19 @@
     <string name="quick_tile_not_configured">Not Configured</string>
     <string name="quick_tile_running">Running</string>
     <string name="quick_tile_stopped">Stopped</string>
+    <string name="export_config">Export Config</string>
+    <string name="export_config_dialog_title">Export Configuration</string>
+    <string name="export_config_file_name">File Name</string>
+    <string name="export_config_success">Saved to %s</string>
+    <string name="export_config_failed">Export failed: %s</string>
+    <string name="import_config">Import Config</string>
+    <string name="import_zip">Import ZIP</string>
+    <string name="import_toml">Import TOML</string>
+    <string name="import_select_type">Select FRP Type</string>
+    <string name="import_select_type_desc">Choose which type this configuration belongs to:</string>
+    <string name="import_success">Import successful</string>
+    <string name="import_failed">Import failed: %s</string>
+    <string name="import_failed_read">Failed to read file</string>
+    <string name="import_failed_no_folder">Import failed: No FRPC or FRPS folder found in ZIP</string>
+    <string name="import_failed_not_toml">Import failed: File must have .toml extension</string>
 </resources>
