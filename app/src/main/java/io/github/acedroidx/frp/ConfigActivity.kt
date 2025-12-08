@@ -48,7 +48,7 @@ import io.github.acedroidx.frp.ui.theme.FrpTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 
-class ConfigActivity : ComponentActivity() {
+class ConfigActivity : BaseActivity() {
     private val configEditText = MutableStateFlow("")
     private val isAutoStart = MutableStateFlow(false)
     private val frpVersion = MutableStateFlow("Loading...")

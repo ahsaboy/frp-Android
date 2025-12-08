@@ -90,7 +90,7 @@ import java.util.Locale
 import java.util.zip.ZipInputStream
 
 
-class MainActivity : ComponentActivity() {
+class MainActivity : BaseActivity() {
     private val isStartup = MutableStateFlow(false)
     private val frpcConfigList = MutableStateFlow<List<FrpConfig>>(emptyList())
     private val frpsConfigList = MutableStateFlow<List<FrpConfig>>(emptyList())

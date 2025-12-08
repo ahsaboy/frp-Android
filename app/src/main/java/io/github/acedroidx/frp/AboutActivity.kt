@@ -37,7 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.acedroidx.frp.ui.theme.FrpTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 
-class AboutActivity : ComponentActivity() {
+class AboutActivity : BaseActivity() {
     private val frpVersion = MutableStateFlow("Loading...")
     private val themeMode = MutableStateFlow("跟随系统")
     private lateinit var preferences: SharedPreferences
