@@ -2,4 +2,7 @@
 <resources>
 
     <style name="Theme.Frp" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- 深色主题，用于在 Activity 创建前应用 -->
+    <style name="Theme.Frp.Dark" parent="android:Theme.Material.NoActionBar" />
 </resources>

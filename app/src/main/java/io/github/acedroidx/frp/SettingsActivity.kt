@@ -63,7 +63,7 @@ import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-class SettingsActivity : ComponentActivity() {
+class SettingsActivity : BaseActivity() {
     private val isStartup = MutableStateFlow(false)
     private val themeMode = MutableStateFlow("跟随系统")
     private val allowTasker = MutableStateFlow(true)
