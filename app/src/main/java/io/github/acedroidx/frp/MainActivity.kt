@@ -858,31 +858,22 @@ class MainActivity : BaseActivity() {
             while (entry != null) {
                 val name = entry.name
 
-                // 检查是否在 FRPC 或 FRPS 文件夹中
-                val (type, fileName) = when {
-                    name.startsWith("FRPC/") && name.endsWith(".toml") -> {
-                        hasValidFolder = true
-                        FrpType.FRPC to name.substring(5)
-                    }
-                    name.startsWith("FRPS/") && name.endsWith(".toml") -> {
-                        hasValidFolder = true
-                        FrpType.FRPS to name.substring(5)
-                    }
-                    else -> {
-                        zipInputStream.closeEntry()
-                        entry = zipInputStream.nextEntry
-                        continue
-                    }
-                }
+                // 递归识别 frpc/frps 文件夹（大小写不敏感）
+                // 支持任意深度的目录结构，如：backup/FRPC/config.toml 或 frpc/config.toml
+                val (type, fileName) = findFrpTypeAndFileName(name)
 
-                // 生成唯一文件名（增量导入，避免覆盖）
-                val targetDir = type.getDir(this@MainActivity)
-                val uniqueFileName = generateUniqueFileName(targetDir, fileName)
-                val targetFile = File(targetDir, uniqueFileName)
+                if (type != null && fileName != null && name.endsWith(".toml", ignoreCase = true)) {
+                    hasValidFolder = true
 
-                // 写入文件
-                FileOutputStream(targetFile).use { output ->
-                    zipInputStream.copyTo(output)
+                    // 生成唯一文件名（增量导入，避免覆盖）
+                    val targetDir = type.getDir(this@MainActivity)
+                    val uniqueFileName = generateUniqueFileName(targetDir, fileName)
+                    val targetFile = File(targetDir, uniqueFileName)
+
+                    // 写入文件
+                    FileOutputStream(targetFile).use { output ->
+                        zipInputStream.copyTo(output)
+                    }
                 }
 
                 zipInputStream.closeEntry()
@@ -918,6 +909,43 @@ class MainActivity : BaseActivity() {
                 ).show()
             }
         }
+    }
+
+    /**
+     * 递归识别路径中的 frpc/frps 文件夹（大小写不敏感）
+     * 支持任意深度的目录结构，如：
+     * - FRPC/config.toml
+     * - frpc/config.toml
+     * - backup/FRPS/server.toml
+     * - some/deep/path/frpc/client.toml
+     *
+     * @return Pair<FrpType?, String?> 如果找到有效的 frpc/frps 文件夹，返回类型和文件名；否则返回 null
+     */
+    private fun findFrpTypeAndFileName(path: String): Pair<FrpType?, String?> {
+        val pathParts = path.split("/")
+
+        // 从后向前遍历，找到最近的 frpc/frps 文件夹
+        for (i in pathParts.indices.reversed()) {
+            val part = pathParts[i].lowercase()
+            when (part) {
+                "frpc" -> {
+                    // 取 frpc 文件夹之后的路径作为文件名
+                    if (i < pathParts.size - 1) {
+                        val fileName = pathParts.last()
+                        return FrpType.FRPC to fileName
+                    }
+                }
+                "frps" -> {
+                    // 取 frps 文件夹之后的路径作为文件名
+                    if (i < pathParts.size - 1) {
+                        val fileName = pathParts.last()
+                        return FrpType.FRPS to fileName
+                    }
+                }
+            }
+        }
+
+        return null to null
     }
 
     private suspend fun importTomlFile(uri: Uri, type: FrpType) = withContext(Dispatchers.IO) {
