@@ -14,6 +14,7 @@ import androidx.core.content.edit
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -22,12 +23,20 @@ import java.io.File
 import java.io.FileWriter
 import java.io.BufferedReader
 import java.io.FileReader
+import java.util.concurrent.ConcurrentHashMap
 
 
 class ShellService : LifecycleService() {
     companion object {
         private const val TAG = "ShellService"
-        private const val PROCESS_RESTART_DELAY_MS = 2000L
+        private const val PROCESS_RESTART_BASE_DELAY_MS = 2000L
+        private const val PROCESS_RESTART_MAX_DELAY_MS = 60_000L
+        private const val PROCESS_RESTART_MAX_RETRIES = 6
+        private const val PROCESS_RESTART_STABLE_RUN_MS = 60_000L
+        private const val DEFAULT_LOG_MAX_LINES = 20
+        private const val MIN_LOG_MAX_LINES = 1
+        private const val MAX_LOG_MAX_LINES = 500
+        private const val LOG_FLUSH_DELAY_MS = 500L
     }
 
     private val _processThreads = MutableStateFlow(mutableMapOf<FrpConfig, ShellThread>())
@@ -39,13 +48,21 @@ class ShellService : LifecycleService() {
     private val _configLogs = MutableStateFlow(mutableMapOf<FrpConfig, String>())
     val configLogs = _configLogs.asStateFlow()
     private val preferences by lazy { getSharedPreferences("data", MODE_PRIVATE) }
+    private val restartFailCount = ConcurrentHashMap<FrpConfig, Int>()
+    private val processStartAtMs = ConcurrentHashMap<FrpConfig, Long>()
+    private val logBufferLock = Any()
+    private val configLogBuffers = mutableMapOf<FrpConfig, ArrayDeque<String>>()
+    private val logFlushJobs = mutableMapOf<FrpConfig, Job>()
 
     fun clearConfigLog(config: FrpConfig) {
-        val logFile = config.getLogFile(this)
-        if (logFile.exists()) {
-            logFile.delete()
+        synchronized(logBufferLock) {
+            logFlushJobs.remove(config)?.cancel()
+            configLogBuffers[config] = ArrayDeque()
+            val logFile = config.getLogFile(this)
+            if (logFile.exists()) {
+                logFile.delete()
+            }
         }
-        // 清空内存中的日志
         _configLogs.update { currentLogs ->
             currentLogs.toMutableMap().apply {
                 put(config, "")
@@ -54,36 +71,16 @@ class ShellService : LifecycleService() {
     }
 
     fun getConfigLog(config: FrpConfig): String {
-        // 优先返回内存中的实时日志
         return _configLogs.value[config] ?: run {
-            // 如果内存中没有，从文件读取
-            val logFile = config.getLogFile(this)
-            if (!logFile.exists()) {
-                return ""
+            val logContent = synchronized(logBufferLock) {
+                val buffer = getOrLoadLogBufferLocked(config)
+                buffer.joinToString("\n")
             }
-
-            val lines = mutableListOf<String>()
-            BufferedReader(FileReader(logFile)).use { reader ->
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    lines.add(line!!)
-                }
-            }
-
-            // 只返回最多20行
-            val logContent = if (lines.size <= 20) {
-                lines.joinToString("\n")
-            } else {
-                lines.takeLast(20).joinToString("\n")
-            }
-
-            // 同时更新内存中的日志
             _configLogs.update { currentLogs ->
                 currentLogs.toMutableMap().apply {
                     put(config, logContent)
                 }
             }
-
             logContent
         }
     }
@@ -123,45 +120,89 @@ class ShellService : LifecycleService() {
     }
 
     private fun appendToConfigLog(config: FrpConfig, logLine: String) {
-        val logDir = config.getLogDir(this)
-        if (!logDir.exists()) {
-            logDir.mkdirs()
+        val maxLines = getConfiguredLogMaxLines()
+        val logContent: String
+        synchronized(logBufferLock) {
+            val buffer = getOrLoadLogBufferLocked(config)
+            buffer.addLast(logLine)
+            while (buffer.size > maxLines) {
+                buffer.removeFirst()
+            }
+            logContent = buffer.joinToString("\n")
+            scheduleLogFlushLocked(config)
+        }
+        _configLogs.update { currentLogs ->
+            currentLogs.toMutableMap().apply {
+                put(config, logContent)
+            }
+        }
+    }
+
+    private fun getOrLoadLogBufferLocked(config: FrpConfig): ArrayDeque<String> {
+        val maxLines = getConfiguredLogMaxLines()
+        val existing = configLogBuffers[config]
+        if (existing != null) {
+            while (existing.size > maxLines) {
+                existing.removeFirst()
+            }
+            return existing
         }
 
+        val buffer = ArrayDeque<String>()
         val logFile = config.getLogFile(this)
-        val lines = mutableListOf<String>()
-
-        // 读取现有日志
         if (logFile.exists()) {
+            val lines = mutableListOf<String>()
             BufferedReader(FileReader(logFile)).use { reader ->
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
                     lines.add(line!!)
                 }
             }
+            lines.takeLast(maxLines).forEach { buffer.addLast(it) }
         }
+        configLogBuffers[config] = buffer
+        return buffer
+    }
 
-        // 添加新日志行
-        lines.add(logLine)
-
-        // 如果超过20行，删除最旧的行
-        while (lines.size > 20) {
-            lines.removeAt(0)
+    private fun scheduleLogFlushLocked(config: FrpConfig) {
+        val existingJob = logFlushJobs[config]
+        if (existingJob != null && existingJob.isActive) {
+            return
         }
+        logFlushJobs[config] = lifecycleScope.launch {
+            delay(LOG_FLUSH_DELAY_MS)
+            flushConfigLogToDisk(config)
+            synchronized(logBufferLock) {
+                if (logFlushJobs[config] === this) {
+                    logFlushJobs.remove(config)
+                }
+            }
+        }
+    }
 
-        // 写回文件
+    private fun flushConfigLogToDisk(config: FrpConfig) {
+        val lines = synchronized(logBufferLock) {
+            configLogBuffers[config]?.toList() ?: emptyList()
+        }
+        val logDir = config.getLogDir(this)
+        if (!logDir.exists()) {
+            logDir.mkdirs()
+        }
+        val logFile = config.getLogFile(this)
         FileWriter(logFile, false).use { writer ->
             lines.forEach { line ->
-                writer.write(line + "\n")
+                writer.write(line)
+                writer.write("\n")
             }
         }
+    }
 
-        // 实时更新内存中的日志流
-        val logContent = lines.joinToString("\n")
-        _configLogs.update { currentLogs ->
-            currentLogs.toMutableMap().apply {
-                put(config, logContent)
-            }
+    private fun flushAllLogsImmediately() {
+        val configs = synchronized(logBufferLock) {
+            configLogBuffers.keys.toList()
+        }
+        configs.forEach { config ->
+            flushConfigLogToDisk(config)
         }
     }
 
@@ -209,19 +250,6 @@ class ShellService : LifecycleService() {
 
             Toast.makeText(this, "已停止所有配置", Toast.LENGTH_SHORT).show()
 
-            // 关闭应用
-            val mainActivityIntent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                putExtra("EXIT_APP", true)
-                // 检查是否需要从最近任务中排除
-                val preferences = getSharedPreferences("data", MODE_PRIVATE)
-                val excludeFromRecents = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
-                if (excludeFromRecents) {
-                    addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
-                }
-            }
-            startActivity(mainActivityIntent)
-
             return START_NOT_STICKY
         }
 
@@ -245,6 +273,7 @@ class ShellService : LifecycleService() {
                 if (isKeepAliveEnabled()) {
                     addDesiredRunningConfigs(frpConfig)
                 }
+                frpConfig.forEach { clearRestartState(it) }
                 var runningChanged = false
                 for (config in frpConfig) {
                     if (startFrp(config)) {
@@ -321,6 +350,7 @@ class ShellService : LifecycleService() {
         try {
             val thread = runCommand(commandList, dir, config)
             _processThreads.update { it.toMutableMap().apply { put(config, thread) } }
+            processStartAtMs[config] = System.currentTimeMillis()
             return true
         } catch (e: Exception) {
             Log.e("adx", e.stackTraceToString())
@@ -339,10 +369,16 @@ class ShellService : LifecycleService() {
         _processThreads.update {
             it.toMutableMap().apply { remove(config) }
         }
+        processStartAtMs.remove(config)
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        flushAllLogsImmediately()
+        synchronized(logBufferLock) {
+            logFlushJobs.values.forEach { it.cancel() }
+            logFlushJobs.clear()
+        }
         if (!_processThreads.value.isEmpty()) {
             _processThreads.value.forEach {
 //                it.value.interrupt()
@@ -350,6 +386,11 @@ class ShellService : LifecycleService() {
             }
             _processThreads.update { it.clear();it }
         }
+        synchronized(logBufferLock) {
+            configLogBuffers.clear()
+        }
+        processStartAtMs.clear()
+        restartFailCount.clear()
     }
 
     private fun runCommand(command: List<String>, dir: File, config: FrpConfig): ShellThread {
@@ -411,17 +452,50 @@ class ShellService : LifecycleService() {
             return
         }
 
+        val now = System.currentTimeMillis()
+        val startedAt = processStartAtMs.remove(config)
+        val runDurationMs = startedAt?.let { now - it } ?: 0L
+
         val desiredRunning = isKeepAliveEnabled() && isDesiredRunningConfig(config)
         if (!manuallyStopped && desiredRunning) {
-            lifecycleScope.launch {
-                delay(PROCESS_RESTART_DELAY_MS)
-                if (isKeepAliveEnabled() && isDesiredRunningConfig(config) && !_processThreads.value.contains(config)) {
-                    Log.w(TAG, "Process exited unexpectedly (code=$exitCode), restarting: $config")
-                    if (startFrp(config, showToast = false)) {
-                        startForeground(1, showNotification())
+            if (runDurationMs >= PROCESS_RESTART_STABLE_RUN_MS) {
+                restartFailCount[config] = 0
+            }
+            val nextFailureCount = (restartFailCount[config] ?: 0) + 1
+            restartFailCount[config] = nextFailureCount
+
+            if (nextFailureCount > PROCESS_RESTART_MAX_RETRIES) {
+                Log.e(
+                    TAG,
+                    "Keep-alive disabled for $config after $PROCESS_RESTART_MAX_RETRIES retries, lastExit=$exitCode"
+                )
+                appendToConfigLog(
+                    config,
+                    "Keep-alive paused: exceeded retry limit ($PROCESS_RESTART_MAX_RETRIES). Start manually to retry."
+                )
+                removeDesiredRunningConfigs(listOf(config))
+                clearRestartState(config)
+            } else {
+                val retryDelayMs = calculateRestartDelayMs(nextFailureCount)
+                appendToConfigLog(
+                    config,
+                    "Unexpected exit (code=$exitCode), retry $nextFailureCount/$PROCESS_RESTART_MAX_RETRIES in ${retryDelayMs}ms"
+                )
+                lifecycleScope.launch {
+                    delay(retryDelayMs)
+                    if (isKeepAliveEnabled() && isDesiredRunningConfig(config) && !_processThreads.value.contains(config)) {
+                        Log.w(
+                            TAG,
+                            "Process exited unexpectedly (code=$exitCode), retry=$nextFailureCount, restarting: $config"
+                        )
+                        if (startFrp(config, showToast = false)) {
+                            startForeground(1, showNotification())
+                        }
                     }
                 }
             }
+        } else {
+            clearRestartState(config)
         }
 
         if (_processThreads.value.isNotEmpty()) {
@@ -460,6 +534,7 @@ class ShellService : LifecycleService() {
                 FrpType.FRPC -> frpcSet.remove(config.fileName)
                 FrpType.FRPS -> frpsSet.remove(config.fileName)
             }
+            clearRestartState(config)
         }
         saveDesiredConfigNameSet(FrpType.FRPC, frpcSet)
         saveDesiredConfigNameSet(FrpType.FRPS, frpsSet)
@@ -470,6 +545,8 @@ class ShellService : LifecycleService() {
             remove(PreferencesKey.KEEP_ALIVE_FRPC_LIST)
             remove(PreferencesKey.KEEP_ALIVE_FRPS_LIST)
         }
+        restartFailCount.clear()
+        processStartAtMs.clear()
     }
 
     private fun hasDesiredRunningConfigs(): Boolean {
@@ -524,6 +601,23 @@ class ShellService : LifecycleService() {
             FrpType.FRPC -> PreferencesKey.KEEP_ALIVE_FRPC_LIST
             FrpType.FRPS -> PreferencesKey.KEEP_ALIVE_FRPS_LIST
         }
+    }
+
+    private fun calculateRestartDelayMs(failureCount: Int): Long {
+        val exponent = (failureCount - 1).coerceAtLeast(0)
+        val multiplier = 1L shl exponent.coerceAtMost(20)
+        val delayMs = PROCESS_RESTART_BASE_DELAY_MS * multiplier
+        return delayMs.coerceAtMost(PROCESS_RESTART_MAX_DELAY_MS)
+    }
+
+    private fun clearRestartState(config: FrpConfig) {
+        restartFailCount.remove(config)
+        processStartAtMs.remove(config)
+    }
+
+    private fun getConfiguredLogMaxLines(): Int {
+        return preferences.getInt(PreferencesKey.LOG_MAX_LINES, DEFAULT_LOG_MAX_LINES)
+            .coerceIn(MIN_LOG_MAX_LINES, MAX_LOG_MAX_LINES)
     }
 
     private fun isKeepAliveEnabled(): Boolean {

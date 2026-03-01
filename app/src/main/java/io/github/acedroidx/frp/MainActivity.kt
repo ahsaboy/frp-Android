@@ -22,6 +22,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.core.content.edit
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
@@ -76,6 +77,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.acedroidx.frp.ui.theme.FrpTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.OutlinedButton
@@ -98,14 +100,17 @@ class MainActivity : BaseActivity() {
     private val frpVersion = MutableStateFlow("Loading...")
     private val themeMode = MutableStateFlow("跟随系统")
     private val permissionGranted = MutableStateFlow(true)
+    private val logWrapEnabled = MutableStateFlow(true)
 
     private lateinit var preferences: SharedPreferences
 
     private lateinit var mService: ShellService
     private var mBound: Boolean = false
+    private var processThreadsCollectJob: Job? = null
 
     private val showImportTypeDialog = mutableStateOf(false)
     private var pendingImportFile: Uri? = null
+    private var appliedLanguagePreference: String = "system"
 
     // 权限请求启动器
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -172,7 +177,8 @@ class MainActivity : BaseActivity() {
                 }
             }
 
-            mService.lifecycleScope.launch {
+            processThreadsCollectJob?.cancel()
+            processThreadsCollectJob = lifecycleScope.launch {
                 mService.processThreads.collect { processThreads ->
                     runningConfigList.value = processThreads.keys.toList()
                 }
@@ -180,6 +186,8 @@ class MainActivity : BaseActivity() {
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
+            processThreadsCollectJob?.cancel()
+            processThreadsCollectJob = null
             mBound = false
         }
     }
@@ -218,8 +226,10 @@ class MainActivity : BaseActivity() {
         }
 
         isStartup.value = preferences.getBoolean(PreferencesKey.AUTO_START, false)
+        logWrapEnabled.value = preferences.getBoolean(PreferencesKey.LOG_WRAP_ENABLED, true)
         frpVersion.value = preferences.getString(PreferencesKey.FRP_VERSION, "Loading...") ?: "Loading..."
         themeMode.value = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
+        appliedLanguagePreference = preferences.getString(PreferencesKey.APP_LANGUAGE, "system") ?: "system"
 
         checkConfig()
         updateConfigList()
@@ -239,7 +249,7 @@ class MainActivity : BaseActivity() {
                     topBar = {
                         TopAppBar(
                             title = {
-                                Text("frp for Android - ${BuildConfig.VERSION_NAME}/$frpVersion")
+                                Text("${stringResource(R.string.frp_for_android)} - ${BuildConfig.VERSION_NAME}/$frpVersion")
                             },
                             actions = {
                                 IconButton(onClick = {
@@ -247,7 +257,7 @@ class MainActivity : BaseActivity() {
                                 }) {
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_settings_24dp),
-                                        contentDescription = "设置"
+                                        contentDescription = stringResource(R.string.settings_content_desc)
                                     )
                                 }
                             }
@@ -348,6 +358,7 @@ class MainActivity : BaseActivity() {
     @Composable
     fun FrpConfigItem(config: FrpConfig) {
         val runningConfigList by runningConfigList.collectAsStateWithLifecycle(emptyList())
+        val isLogWrapEnabled by logWrapEnabled.collectAsStateWithLifecycle(true)
         val isRunning = runningConfigList.contains(config)
         val showLog = remember { mutableStateOf(false) }
         val showDeleteDialog = remember { mutableStateOf(false) }
@@ -400,7 +411,7 @@ class MainActivity : BaseActivity() {
                         Text(config.fileName)
                         if (isRunning) {
                             Text(
-                                "运行中",
+                                stringResource(R.string.quick_tile_running),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -419,7 +430,7 @@ class MainActivity : BaseActivity() {
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_pencil_24dp),
-                            contentDescription = "编辑",
+                            contentDescription = stringResource(R.string.edit_config),
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -432,7 +443,7 @@ class MainActivity : BaseActivity() {
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_baseline_delete_24),
-                            contentDescription = "删除配置",
+                            contentDescription = stringResource(R.string.delete_config),
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -490,7 +501,7 @@ class MainActivity : BaseActivity() {
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                "配置日志",
+                                stringResource(R.string.frp_log),
                                 style = MaterialTheme.typography.titleSmall
                             )
                             Button(
@@ -502,18 +513,33 @@ class MainActivity : BaseActivity() {
                                 modifier = Modifier.size(width = 80.dp, height = 35.dp)
                             ) {
                                 Text(
-                                    "清除",
+                                    stringResource(R.string.deleteButton),
                                     style = MaterialTheme.typography.labelSmall
                                 )
                             }
                         }
                         SelectionContainer {
+                            val displayLog = configLog.ifEmpty { stringResource(R.string.no_log) }
+                            val ansiLog = remember(displayLog) {
+                                parseAnsiToAnnotatedString(
+                                    text = displayLog,
+                                    defaultColor = androidx.compose.ui.graphics.Color.Unspecified
+                                )
+                            }
+                            val horizontalScrollState = rememberScrollState()
                             Text(
-                                text = configLog.ifEmpty {
-                                    "暂无日志"
-                                },
+                                text = ansiLog,
                                 style = MaterialTheme.typography.bodySmall.merge(fontFamily = FontFamily.Monospace),
-                                modifier = Modifier.padding(vertical = 4.dp)
+                                softWrap = isLogWrapEnabled,
+                                modifier = Modifier
+                                    .padding(vertical = 4.dp)
+                                    .then(
+                                        if (isLogWrapEnabled) {
+                                            Modifier
+                                        } else {
+                                            Modifier.horizontalScroll(horizontalScrollState)
+                                        }
+                                    )
                             )
                         }
                     }
@@ -525,8 +551,8 @@ class MainActivity : BaseActivity() {
         if (showDeleteDialog.value) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog.value = false },
-                title = { Text("确认删除") },
-                text = { Text("确认删除 ${config.fileName} 吗？") },
+                title = { Text(stringResource(R.string.confirm_delete_title)) },
+                text = { Text(stringResource(R.string.confirm_delete_message, config.fileName)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -534,14 +560,14 @@ class MainActivity : BaseActivity() {
                             showDeleteDialog.value = false
                         }
                     ) {
-                        Text("删除")
+                        Text(stringResource(R.string.deleteConfigButton))
                     }
                 },
                 dismissButton = {
                     TextButton(
                         onClick = { showDeleteDialog.value = false }
                     ) {
-                        Text("取消")
+                        Text(stringResource(R.string.dismiss))
                     }
                 }
             )
@@ -660,9 +686,17 @@ class MainActivity : BaseActivity() {
 
     override fun onResume() {
         super.onResume()
+        val currentLanguagePreference =
+            preferences.getString(PreferencesKey.APP_LANGUAGE, "system") ?: "system"
+        if (currentLanguagePreference != appliedLanguagePreference) {
+            appliedLanguagePreference = currentLanguagePreference
+            recreate()
+            return
+        }
         // 从 SharedPreferences 重新加载主题设置
         val savedTheme = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
         themeMode.value = savedTheme
+        logWrapEnabled.value = preferences.getBoolean(PreferencesKey.LOG_WRAP_ENABLED, true)
 
         // 重新应用"最近任务中排除"设置
         val excludeFromRecents = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
@@ -692,6 +726,8 @@ class MainActivity : BaseActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        processThreadsCollectJob?.cancel()
+        processThreadsCollectJob = null
         if (mBound) {
             unbindService(connection)
             mBound = false

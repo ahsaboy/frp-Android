@@ -13,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -64,9 +66,33 @@ jobs:
           name: frp-Android-universal
           path: app/build/outputs/apk/release/*universal*.apk
 
+      - name: Generate release log from commits
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          current_tag="${GITHUB_REF#refs/tags/}"
+          previous_tag="$(git tag --sort=-creatordate | grep -v "^${current_tag}$" | head -n 1 || true)"
+
+          if [ -n "${previous_tag}" ]; then
+            commit_log="$(git log "${previous_tag}..${current_tag}" --pretty=format:'- %h %s (%an)')"
+          else
+            commit_log="$(git log -n 20 --pretty=format:'- %h %s (%an)')"
+          fi
+
+          if [ -z "${commit_log}" ]; then
+            commit_log="- No commits found."
+          fi
+
+          {
+            echo "RELEASE_BODY<<EOF"
+            echo "## Commit Log"
+            echo "${commit_log}"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: app/build/outputs/apk/release/*.apk
-          generate_release_notes: true
+          body: ${{ env.RELEASE_BODY }}

@@ -41,14 +41,14 @@ android {
         minSdk = 23
         targetSdk = 35
         compileSdk = 35
-        versionCode = 21
-        versionName = "1.5.4"
+        versionCode = 22
+        versionName = "1.5.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         signingConfig = signingConfigs.getByName("AceKeystore")
 
-        buildConfigField("String", "FrpVersion", "\"0.61.1\"")
+        buildConfigField("String", "FrpVersion", "\"0.67.0\"")
         buildConfigField("String", "FrpcFileName", "\"libfrpc.so\"")
         buildConfigField("String", "FrpsFileName", "\"libfrps.so\"")
         buildConfigField("String", "FrpcConfigFileName", "\"frpc.toml\"")

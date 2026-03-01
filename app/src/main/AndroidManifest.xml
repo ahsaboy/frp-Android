@@ -65,7 +65,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="explanation_for_special_use" />
+                android:value="Maintains user-started FRP tunnel processes and keeps active network proxy sessions running in foreground while configs are enabled." />
         </service>
 
         <activity
