@@ -1,7 +1,23 @@
 <resources>
     <string name="app_name" translatable="false">FRP</string>
     <string name="frp_for_android" translatable="false">frp for Android</string>
+    <string name="settings_title">Settings</string>
+    <string name="back">Back</string>
+    <string name="language_title">Language</string>
+    <string name="language_system">Follow System</string>
+    <string name="language_chinese">Chinese</string>
+    <string name="language_english">English</string>
+    <string name="settings_section_display">Display &amp; Language</string>
+    <string name="settings_section_runtime">Runtime</string>
+    <string name="settings_section_logs">Logs</string>
+    <string name="settings_section_automation">Automation</string>
+    <string name="settings_section_behavior">Behavior</string>
+    <string name="settings_section_data">Data</string>
+    <string name="settings_section_about">About</string>
     <string name="auto_start_switch">Startup at Boot</string>
+    <string name="theme_mode">Theme Mode</string>
+    <string name="allow_tasker">Allow Tasker Access</string>
+    <string name="exclude_from_recents">Exclude From Recents</string>
     <string name="addConfigButton">Add Config</string>
     <string name="aboutButton">About</string>
     <string name="frp_log">frp Log</string>
@@ -24,7 +40,7 @@
     <string name="dismiss">Dismiss</string>
     <string name="create_frp_select">Select the type of frp to create</string>
     <string name="tasker_config_title">Tasker FRP Action</string>
-    <string name="tasker_config_description">This action will start the specified FRP configuration.  To use: Set variables in Tasker: • %frpType - \"frpc\" or \"frps\" • %configFileName - name of config file</string>
+    <string name="tasker_config_description" formatted="false">This action will start the specified FRP configuration.  To use: Set variables in Tasker: • %frpType - \"frpc\" or \"frps\" • %configFileName - name of config file</string>
     <string name="tasker_select_config_title">Select FRP Configuration</string>
     <string name="tasker_select_type">Select FRP Type:</string>
     <string name="tasker_select_config">Select Configuration File:</string>
@@ -34,6 +50,10 @@
     <string name="permission_notification_title">Notification Permission Required</string>
     <string name="permission_notification_message">This app needs notification permission to show background service status. Please grant the permission to ensure proper functionality.</string>
     <string name="keep_alive_switch">Keep Alive</string>
+    <string name="log_wrap_switch">Log Auto Wrap</string>
+    <string name="log_max_lines_title">Log Max Lines</string>
+    <string name="log_max_lines_value">%d lines</string>
+    <string name="log_max_lines_hint">Enter max lines (1-500)</string>
     <string name="battery_optimization_guide_title">Battery Optimization Whitelist</string>
     <string name="battery_optimization_whitelisted">Current status: Whitelisted</string>
     <string name="battery_optimization_not_whitelisted">Current status: Not whitelisted</string>
@@ -62,4 +82,12 @@
     <string name="import_failed_read">Failed to read file</string>
     <string name="import_failed_no_folder">Import failed: No FRPC or FRPS folder found in ZIP</string>
     <string name="import_failed_not_toml">Import failed: File must have .toml extension</string>
+    <string name="confirm_delete_title">Confirm Delete</string>
+    <string name="confirm_delete_message">Delete %s?</string>
+    <string name="edit_config">Edit Config</string>
+    <string name="delete_config">Delete Config</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_follow_system">Follow System</string>
+    <string name="settings_content_desc">Open settings</string>
 </resources>
