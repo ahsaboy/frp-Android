@@ -754,7 +754,7 @@ class MainActivity : BaseActivity() {
         val intent = Intent(this, ShellService::class.java)
         intent.action = ShellServiceAction.START
         intent.putExtra(IntentExtraKey.FrpConfig, arrayListOf(config))
-        startService(intent)
+        startShellService(intent)
     }
 
     private fun stopShell(config: FrpConfig) {

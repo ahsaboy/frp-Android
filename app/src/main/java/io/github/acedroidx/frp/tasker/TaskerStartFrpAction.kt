@@ -27,6 +27,7 @@ import io.github.acedroidx.frp.PreferencesKey
 import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.ShellService
 import io.github.acedroidx.frp.ShellServiceAction
+import io.github.acedroidx.frp.startShellService
 
 /**
  * Input class for Tasker - defines which FRP configuration to start
@@ -228,7 +229,7 @@ class StartFrpRunner : TaskerPluginRunnerActionNoOutput<StartFrpInput>() {
         }
 
         try {
-            context.startService(intent)
+            context.startShellService(intent)
             return TaskerPluginResultSucess()
         } catch (e: Exception) {
             return TaskerPluginResultError(e)

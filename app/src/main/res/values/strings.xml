@@ -33,6 +33,14 @@
     <string name="tasker_stop_all">Stop All Running Configs</string>
     <string name="permission_notification_title">Notification Permission Required</string>
     <string name="permission_notification_message">This app needs notification permission to show background service status. Please grant the permission to ensure proper functionality.</string>
+    <string name="keep_alive_switch">Keep Alive</string>
+    <string name="battery_optimization_guide_title">Battery Optimization Whitelist</string>
+    <string name="battery_optimization_whitelisted">Current status: Whitelisted</string>
+    <string name="battery_optimization_not_whitelisted">Current status: Not whitelisted</string>
+    <string name="battery_optimization_not_applicable">Current status: Not required on this Android version</string>
+    <string name="battery_optimization_guide_desc">To improve background stability, allow this app to ignore battery optimization. Different OEM systems may still require additional auto-start or background permission settings.</string>
+    <string name="battery_optimization_request_button">Request Whitelist</string>
+    <string name="battery_optimization_open_settings_button">Open Battery Settings</string>
     <string name="quick_tile_label">FRP Toggle</string>
     <string name="quick_tile_config">Quick Tile Config</string>
     <string name="quick_tile_not_selected">Not Selected</string>

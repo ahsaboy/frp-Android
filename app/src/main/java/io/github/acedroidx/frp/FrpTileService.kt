@@ -77,7 +77,7 @@ class FrpTileService : TileService() {
                 action = ShellServiceAction.START
                 putExtra(IntentExtraKey.FrpConfig, arrayListOf(config))
             }
-            startService(intent)
+            startShellService(intent)
         }
 
         // 延迟更新状态，等待服务处理完成

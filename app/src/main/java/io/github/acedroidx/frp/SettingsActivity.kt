@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.PowerManager
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -65,9 +66,11 @@ import java.util.zip.ZipOutputStream
 
 class SettingsActivity : BaseActivity() {
     private val isStartup = MutableStateFlow(false)
+    private val keepAliveEnabled = MutableStateFlow(false)
     private val themeMode = MutableStateFlow("跟随系统")
     private val allowTasker = MutableStateFlow(true)
     private val excludeFromRecents = MutableStateFlow(false)
+    private val batteryOptimizationWhitelisted = MutableStateFlow(false)
     private val quickTileConfig = MutableStateFlow<FrpConfig?>(null)
     private val exportStatusMessage = MutableStateFlow<String?>(null)
     private lateinit var preferences: SharedPreferences
@@ -92,6 +95,7 @@ class SettingsActivity : BaseActivity() {
 
         preferences = getSharedPreferences("data", MODE_PRIVATE)
         isStartup.value = preferences.getBoolean(PreferencesKey.AUTO_START, false)
+        keepAliveEnabled.value = preferences.getBoolean(PreferencesKey.KEEP_ALIVE_ENABLED, false)
 
         // 读取主题设置，默认为跟随系统
         val savedTheme = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
@@ -108,6 +112,7 @@ class SettingsActivity : BaseActivity() {
 
         // 读取快捷开关配置
         loadQuickTileConfig()
+        refreshBatteryOptimizationStatus()
 
         enableEdgeToEdge()
         setContent {
@@ -149,9 +154,11 @@ class SettingsActivity : BaseActivity() {
     @Composable
     fun SettingsContent() {
         val isAutoStart by isStartup.collectAsStateWithLifecycle(false)
+        val isKeepAliveEnabled by keepAliveEnabled.collectAsStateWithLifecycle(false)
         val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
         val isTaskerAllowed by allowTasker.collectAsStateWithLifecycle(true)
         val isExcludeFromRecents by excludeFromRecents.collectAsStateWithLifecycle(false)
+        val isBatteryOptimizationWhitelisted by batteryOptimizationWhitelisted.collectAsStateWithLifecycle(false)
         val currentQuickTileConfig by quickTileConfig.collectAsStateWithLifecycle(null)
         val configs by allConfigs.collectAsStateWithLifecycle(emptyList())
 
@@ -175,6 +182,42 @@ class SettingsActivity : BaseActivity() {
                     editor.putBoolean(PreferencesKey.AUTO_START, checked)
                     editor.apply()
                     isStartup.value = checked
+                }
+            )
+
+            HorizontalDivider()
+
+            SettingItemWithSwitch(
+                title = stringResource(R.string.keep_alive_switch),
+                checked = isKeepAliveEnabled,
+                onCheckedChange = { checked ->
+                    val editor = preferences.edit()
+                    editor.putBoolean(PreferencesKey.KEEP_ALIVE_ENABLED, checked)
+                    if (!checked) {
+                        editor.remove(PreferencesKey.KEEP_ALIVE_FRPC_LIST)
+                        editor.remove(PreferencesKey.KEEP_ALIVE_FRPS_LIST)
+                    }
+                    editor.apply()
+                    keepAliveEnabled.value = checked
+                }
+            )
+
+            HorizontalDivider()
+
+            val batteryStatusText = when {
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.M ->
+                    stringResource(R.string.battery_optimization_not_applicable)
+                isBatteryOptimizationWhitelisted ->
+                    stringResource(R.string.battery_optimization_whitelisted)
+                else ->
+                    stringResource(R.string.battery_optimization_not_whitelisted)
+            }
+
+            SettingItemWithStatus(
+                title = stringResource(R.string.battery_optimization_guide_title),
+                status = batteryStatusText,
+                onClick = {
+                    startActivity(Intent(this@SettingsActivity, BatteryOptimizationGuideActivity::class.java))
                 }
             )
 
@@ -281,6 +324,42 @@ class SettingsActivity : BaseActivity() {
                 onClick = {
                     startActivity(Intent(this@SettingsActivity, AboutActivity::class.java))
                 }
+            )
+        }
+    }
+
+    @Composable
+    fun SettingItemWithStatus(
+        title: String,
+        status: String,
+        onClick: () -> Unit
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onClick() }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_arrow_back_24dp),
+                    contentDescription = null,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            Text(
+                text = status,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
             )
         }
     }
@@ -475,6 +554,11 @@ class SettingsActivity : BaseActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        refreshBatteryOptimizationStatus()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         // 清除导出状态消息
@@ -623,5 +707,16 @@ class SettingsActivity : BaseActivity() {
         }
 
         zipFile
+    }
+
+    private fun refreshBatteryOptimizationStatus() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            batteryOptimizationWhitelisted.value = true
+            return
+        }
+
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        batteryOptimizationWhitelisted.value =
+            powerManager.isIgnoringBatteryOptimizations(packageName)
     }
 }

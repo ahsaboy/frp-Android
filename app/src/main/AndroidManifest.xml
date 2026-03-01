@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -26,6 +27,7 @@
             android:name=".ConfigActivity"
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".AboutActivity" />
+        <activity android:name=".BatteryOptimizationGuideActivity" />
         <activity android:name=".SettingsActivity" />
 
         <!-- Tasker Plugin Action -->
@@ -83,6 +85,7 @@
             android:exported="true">
             <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
 
                 <category android:name="android.intent.category.HOME" />
             </intent-filter>
