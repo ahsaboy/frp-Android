@@ -10,10 +10,14 @@ import android.os.IBinder
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.core.content.edit
 import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileWriter
 import java.io.BufferedReader
@@ -21,6 +25,11 @@ import java.io.FileReader
 
 
 class ShellService : LifecycleService() {
+    companion object {
+        private const val TAG = "ShellService"
+        private const val PROCESS_RESTART_DELAY_MS = 2000L
+    }
+
     private val _processThreads = MutableStateFlow(mutableMapOf<FrpConfig, ShellThread>())
     val processThreads = _processThreads.asStateFlow()
 
@@ -29,6 +38,7 @@ class ShellService : LifecycleService() {
     // 为每个配置创建一个日志流
     private val _configLogs = MutableStateFlow(mutableMapOf<FrpConfig, String>())
     val configLogs = _configLogs.asStateFlow()
+    private val preferences by lazy { getSharedPreferences("data", MODE_PRIVATE) }
 
     fun clearConfigLog(config: FrpConfig) {
         val logFile = config.getLogFile(this)
@@ -175,13 +185,19 @@ class ShellService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
 
+        if (intent == null) {
+            recoverDesiredConfigs("service recreated with null intent")
+            return START_STICKY
+        }
+
         // 处理 STOP_ALL action，不需要 frpConfig 参数
-        if (intent?.action == ShellServiceAction.STOP_ALL) {
+        if (intent.action == ShellServiceAction.STOP_ALL) {
             // 停止所有正在运行的配置
             val allConfigs = _processThreads.value.keys.toList()
             for (config in allConfigs) {
                 stopFrp(config)
             }
+            clearDesiredRunningConfigs()
 
             // 停止前台服务
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -211,32 +227,52 @@ class ShellService : LifecycleService() {
 
         val frpConfig: ArrayList<FrpConfig>? =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                intent?.extras?.getParcelableArrayList(
+                intent.extras?.getParcelableArrayList(
                     IntentExtraKey.FrpConfig, FrpConfig::class.java
                 )
             } else {
-                @Suppress("DEPRECATION") intent?.extras?.getParcelableArrayList(IntentExtraKey.FrpConfig)
+                @Suppress("DEPRECATION") intent.extras?.getParcelableArrayList(IntentExtraKey.FrpConfig)
             }
         if (frpConfig == null) {
             Log.e("adx", "frpConfig is null")
             Toast.makeText(this, "frpConfig is null", Toast.LENGTH_SHORT).show()
-            return START_NOT_STICKY
+            recoverDesiredConfigs("missing frpConfig extras")
+            return START_STICKY
         }
-        when (intent?.action) {
+        when (intent.action) {
             ShellServiceAction.START -> {
-                for (config in frpConfig) {
-                    startFrp(config)
-                }
-                Toast.makeText(this, getString(R.string.service_start_toast), Toast.LENGTH_SHORT)
-                    .show()
                 startForeground(1, showNotification())
+                if (isKeepAliveEnabled()) {
+                    addDesiredRunningConfigs(frpConfig)
+                }
+                var runningChanged = false
+                for (config in frpConfig) {
+                    if (startFrp(config)) {
+                        runningChanged = true
+                    }
+                }
+                if (runningChanged || _processThreads.value.isNotEmpty()) {
+                    Toast.makeText(this, getString(R.string.service_start_toast), Toast.LENGTH_SHORT)
+                        .show()
+                    startForeground(1, showNotification())
+                } else {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                    } else {
+                        @Suppress("DEPRECATION") stopForeground(true)
+                    }
+                    stopSelf()
+                }
             }
 
             ShellServiceAction.STOP -> {
+                removeDesiredRunningConfigs(frpConfig)
                 for (config in frpConfig) {
                     stopFrp(config)
                 }
-                startForeground(1, showNotification())
+                if (_processThreads.value.isNotEmpty()) {
+                    startForeground(1, showNotification())
+                }
                 if (_processThreads.value.isEmpty()) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -248,23 +284,33 @@ class ShellService : LifecycleService() {
                         .show()
                 }
             }
+
+            else -> {
+                Log.w(TAG, "Unknown action: ${intent.action}")
+                recoverDesiredConfigs("unknown action")
+            }
         }
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
-    private fun startFrp(config: FrpConfig) {
+    private fun startFrp(config: FrpConfig, showToast: Boolean = true): Boolean {
         Log.d("adx", "start config is $config")
         val dir = config.getDir(this)
         val file = config.getFile(this)
         if (!file.exists()) {
             Log.w("adx", "file is not exist,service won't start")
-            Toast.makeText(this, "file is not exist,service won't start", Toast.LENGTH_SHORT).show()
-            return
+            if (showToast) {
+                Toast.makeText(this, "file is not exist,service won't start", Toast.LENGTH_SHORT).show()
+            }
+            removeDesiredRunningConfigs(listOf(config))
+            return false
         }
         if (_processThreads.value.contains(config)) {
             Log.w("adx", "frp is already running")
-            Toast.makeText(this, "frp is already running", Toast.LENGTH_SHORT).show()
-            return
+            if (showToast) {
+                Toast.makeText(this, "frp is already running", Toast.LENGTH_SHORT).show()
+            }
+            return false
         }
         val ainfo = packageManager.getApplicationInfo(
             packageName, PackageManager.GET_SHARED_LIBRARY_FILES
@@ -275,10 +321,14 @@ class ShellService : LifecycleService() {
         try {
             val thread = runCommand(commandList, dir, config)
             _processThreads.update { it.toMutableMap().apply { put(config, thread) } }
+            return true
         } catch (e: Exception) {
             Log.e("adx", e.stackTraceToString())
-            Toast.makeText(this, e.message, Toast.LENGTH_LONG).show()
+            if (showToast) {
+                Toast.makeText(this, e.message, Toast.LENGTH_LONG).show()
+            }
             stopSelf()
+            return false
         }
     }
 
@@ -303,12 +353,181 @@ class ShellService : LifecycleService() {
     }
 
     private fun runCommand(command: List<String>, dir: File, config: FrpConfig): ShellThread {
-        val processThread = ShellThread(command, dir) { logLine ->
-            _logText.value += logLine + "\n"
-            appendToConfigLog(config, logLine)
-        }
+        lateinit var processThread: ShellThread
+        processThread = ShellThread(
+            command = command,
+            dir = dir,
+            outputCallback = { logLine ->
+                _logText.value += logLine + "\n"
+                appendToConfigLog(config, logLine)
+            },
+            onExitCallback = { exitCode, manuallyStopped ->
+                onConfigProcessExit(config, processThread, exitCode, manuallyStopped)
+            }
+        )
         processThread.start()
         return processThread
+    }
+
+    private fun recoverDesiredConfigs(reason: String) {
+        if (!isKeepAliveEnabled()) {
+            return
+        }
+        val desiredConfigs = loadDesiredRunningConfigs(cleanInvalidEntries = true)
+        if (desiredConfigs.isEmpty()) {
+            return
+        }
+
+        var startedAny = false
+        desiredConfigs.forEach { config ->
+            if (startFrp(config, showToast = false)) {
+                startedAny = true
+            }
+        }
+
+        if (startedAny || _processThreads.value.isNotEmpty()) {
+            Log.i(TAG, "Recovered ${_processThreads.value.size} config(s), reason=$reason")
+            startForeground(1, showNotification())
+        }
+    }
+
+    private fun onConfigProcessExit(
+        config: FrpConfig,
+        thread: ShellThread,
+        exitCode: Int?,
+        manuallyStopped: Boolean
+    ) {
+        var removed = false
+        _processThreads.update { current ->
+            current.toMutableMap().apply {
+                if (this[config] === thread) {
+                    remove(config)
+                    removed = true
+                }
+            }
+        }
+
+        if (!removed) {
+            return
+        }
+
+        val desiredRunning = isKeepAliveEnabled() && isDesiredRunningConfig(config)
+        if (!manuallyStopped && desiredRunning) {
+            lifecycleScope.launch {
+                delay(PROCESS_RESTART_DELAY_MS)
+                if (isKeepAliveEnabled() && isDesiredRunningConfig(config) && !_processThreads.value.contains(config)) {
+                    Log.w(TAG, "Process exited unexpectedly (code=$exitCode), restarting: $config")
+                    if (startFrp(config, showToast = false)) {
+                        startForeground(1, showNotification())
+                    }
+                }
+            }
+        }
+
+        if (_processThreads.value.isNotEmpty()) {
+            startForeground(1, showNotification())
+        } else if (isKeepAliveEnabled() && hasDesiredRunningConfigs()) {
+            // 没有活动线程但仍有期望运行项，保持前台服务并等待自动重启
+            startForeground(1, showNotification())
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION") stopForeground(true)
+            }
+            stopSelf()
+        }
+    }
+
+    private fun addDesiredRunningConfigs(configs: List<FrpConfig>) {
+        val frpcSet = getDesiredConfigNameSet(FrpType.FRPC)
+        val frpsSet = getDesiredConfigNameSet(FrpType.FRPS)
+        configs.forEach { config ->
+            when (config.type) {
+                FrpType.FRPC -> frpcSet.add(config.fileName)
+                FrpType.FRPS -> frpsSet.add(config.fileName)
+            }
+        }
+        saveDesiredConfigNameSet(FrpType.FRPC, frpcSet)
+        saveDesiredConfigNameSet(FrpType.FRPS, frpsSet)
+    }
+
+    private fun removeDesiredRunningConfigs(configs: List<FrpConfig>) {
+        val frpcSet = getDesiredConfigNameSet(FrpType.FRPC)
+        val frpsSet = getDesiredConfigNameSet(FrpType.FRPS)
+        configs.forEach { config ->
+            when (config.type) {
+                FrpType.FRPC -> frpcSet.remove(config.fileName)
+                FrpType.FRPS -> frpsSet.remove(config.fileName)
+            }
+        }
+        saveDesiredConfigNameSet(FrpType.FRPC, frpcSet)
+        saveDesiredConfigNameSet(FrpType.FRPS, frpsSet)
+    }
+
+    private fun clearDesiredRunningConfigs() {
+        preferences.edit {
+            remove(PreferencesKey.KEEP_ALIVE_FRPC_LIST)
+            remove(PreferencesKey.KEEP_ALIVE_FRPS_LIST)
+        }
+    }
+
+    private fun hasDesiredRunningConfigs(): Boolean {
+        return getDesiredConfigNameSet(FrpType.FRPC).isNotEmpty() ||
+            getDesiredConfigNameSet(FrpType.FRPS).isNotEmpty()
+    }
+
+    private fun isDesiredRunningConfig(config: FrpConfig): Boolean {
+        return getDesiredConfigNameSet(config.type).contains(config.fileName)
+    }
+
+    private fun loadDesiredRunningConfigs(cleanInvalidEntries: Boolean = false): List<FrpConfig> {
+        val frpcNames = getDesiredConfigNameSet(FrpType.FRPC)
+        val frpsNames = getDesiredConfigNameSet(FrpType.FRPS)
+
+        val frpcConfigs = frpcNames.map { FrpConfig(FrpType.FRPC, it) }
+        val frpsConfigs = frpsNames.map { FrpConfig(FrpType.FRPS, it) }
+        val allConfigs = (frpcConfigs + frpsConfigs)
+
+        if (!cleanInvalidEntries) {
+            return allConfigs
+        }
+
+        val validConfigs = allConfigs.filter { it.getFile(this).exists() }
+        if (validConfigs.size != allConfigs.size) {
+            val validFrpcNames = validConfigs.filter { it.type == FrpType.FRPC }
+                .map { it.fileName }
+                .toSet()
+            val validFrpsNames = validConfigs.filter { it.type == FrpType.FRPS }
+                .map { it.fileName }
+                .toSet()
+            saveDesiredConfigNameSet(FrpType.FRPC, validFrpcNames)
+            saveDesiredConfigNameSet(FrpType.FRPS, validFrpsNames)
+        }
+        return validConfigs
+    }
+
+    private fun getDesiredConfigNameSet(type: FrpType): MutableSet<String> {
+        val key = getDesiredConfigKey(type)
+        return preferences.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
+    }
+
+    private fun saveDesiredConfigNameSet(type: FrpType, names: Set<String>) {
+        val key = getDesiredConfigKey(type)
+        preferences.edit {
+            putStringSet(key, names)
+        }
+    }
+
+    private fun getDesiredConfigKey(type: FrpType): String {
+        return when (type) {
+            FrpType.FRPC -> PreferencesKey.KEEP_ALIVE_FRPC_LIST
+            FrpType.FRPS -> PreferencesKey.KEEP_ALIVE_FRPS_LIST
+        }
+    }
+
+    private fun isKeepAliveEnabled(): Boolean {
+        return preferences.getBoolean(PreferencesKey.KEEP_ALIVE_ENABLED, false)
     }
 
     private fun showNotification(): Notification {
@@ -342,6 +561,8 @@ class ShellService : LifecycleService() {
                 )
             )
             //.setTicker("test")
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
             .addAction(
                 R.drawable.ic_baseline_delete_24,

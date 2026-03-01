@@ -32,6 +32,14 @@
     <string name="tasker_stop_all">停止所有运行中的配置</string>
     <string name="permission_notification_title">需要通知权限</string>
     <string name="permission_notification_message">应用需要通知权限来显示后台服务状态。请授予权限以确保功能正常运行。</string>
+    <string name="keep_alive_switch">保活</string>
+    <string name="battery_optimization_guide_title">电池优化白名单</string>
+    <string name="battery_optimization_whitelisted">当前状态：已在白名单</string>
+    <string name="battery_optimization_not_whitelisted">当前状态：未加入白名单</string>
+    <string name="battery_optimization_not_applicable">当前状态：该 Android 版本无需设置</string>
+    <string name="battery_optimization_guide_desc">为提高后台稳定性，建议将本应用加入电池优化白名单。不同厂商系统可能还需要额外开启自启动和后台运行权限。</string>
+    <string name="battery_optimization_request_button">申请加入白名单</string>
+    <string name="battery_optimization_open_settings_button">打开电池优化设置</string>
     <string name="quick_tile_label">FRP 快捷开关</string>
     <string name="quick_tile_config">快捷开关配置</string>
     <string name="quick_tile_not_selected">未选择</string>
