@@ -5,13 +5,17 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.acedroidx.frp.config.ui.ConfigFormScreen
+import io.github.acedroidx.frp.ui.theme.AppThemeMode
 import io.github.acedroidx.frp.ui.theme.FrpTheme
+import io.github.acedroidx.frp.ui.theme.readAppThemeMode
+import io.github.acedroidx.frp.ui.theme.readUseMonet
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 
@@ -19,7 +23,8 @@ class ConfigActivity : BaseActivity() {
     private val configEditText = MutableStateFlow("")
     private val isAutoStart = MutableStateFlow(false)
     private val frpVersion = MutableStateFlow("Loading...")
-    private val themeMode = MutableStateFlow("跟随系统")
+    private val themeMode = MutableStateFlow(AppThemeMode.SYSTEM)
+    private val useMonet = MutableStateFlow(false)
     private lateinit var configFile: File
     private lateinit var frpConfigType: FrpType
     private lateinit var autoStartPreferencesKey: String
@@ -35,7 +40,7 @@ class ConfigActivity : BaseActivity() {
         }
         if (frpConfig == null) {
             Log.e("adx", "frp config is null")
-            Toast.makeText(this, "frp config is null", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.config_error_missing), Toast.LENGTH_SHORT).show()
             setResult(RESULT_CANCELED)
             finish()
             return
@@ -45,15 +50,19 @@ class ConfigActivity : BaseActivity() {
         autoStartPreferencesKey = frpConfig.type.getAutoStartPreferencesKey()
         preferences = getSharedPreferences("data", MODE_PRIVATE)
         frpVersion.value = preferences.getString(PreferencesKey.FRP_VERSION, "Loading...") ?: "Loading..."
-        themeMode.value = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
+        themeMode.value = preferences.readAppThemeMode()
+        useMonet.value = preferences.readUseMonet()
         readConfig()
         readIsAutoStart()
 
-        enableEdgeToEdge()
+        applyEdgeToEdge()
         setContent {
-            val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
+        val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
+        CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
+            val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
+            val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
             val autoStart by isAutoStart.collectAsStateWithLifecycle(false)
-            FrpTheme(themeMode = currentTheme) {
+            FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
                 ConfigFormScreen(
                     configType = frpConfigType,
                     initialToml = configEditText.value,
@@ -69,6 +78,7 @@ class ConfigActivity : BaseActivity() {
                     isAutoStart = autoStart,
                     onAutoStartChange = { setAutoStart(it) },
                 )
+            }
             }
         }
     }
@@ -86,7 +96,7 @@ class ConfigActivity : BaseActivity() {
             configEditText.value = mRespBuff.toString()
         } else {
             Log.e("adx", "config file is not exist")
-            Toast.makeText(this, "config file is not exist", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.config_error_not_found), Toast.LENGTH_SHORT).show()
         }
     }
 

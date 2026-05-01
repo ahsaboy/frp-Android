@@ -12,6 +12,7 @@ object PreferencesKey {
     const val KEEP_ALIVE_FRPS_LIST = "keep_alive_frps_list"
     const val FRP_VERSION = "frp_version"
     const val THEME_MODE = "theme_mode"
+    const val THEME_USE_MONET = "theme_use_monet"
     const val ALLOW_TASKER = "allow_tasker"
     const val EXCLUDE_FROM_RECENTS = "exclude_from_recents"
     const val QUICK_TILE_CONFIG_TYPE = "quick_tile_config_type"

@@ -8,9 +8,10 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.util.Log
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,28 +19,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,20 +33,42 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import io.github.acedroidx.frp.ui.theme.AppThemeMode
 import io.github.acedroidx.frp.ui.theme.FrpTheme
+import io.github.acedroidx.frp.ui.theme.putAppThemeMode
+import io.github.acedroidx.frp.ui.theme.putUseMonet
+import io.github.acedroidx.frp.ui.theme.readAppThemeMode
+import io.github.acedroidx.frp.ui.theme.readUseMonet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.SpinnerEntry
+import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.FileInputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -77,7 +85,8 @@ class SettingsActivity : BaseActivity() {
     private val logMaxLines = MutableStateFlow(DEFAULT_LOG_MAX_LINES)
     private val keepAliveEnabled = MutableStateFlow(false)
     private val appLanguage = MutableStateFlow("system")
-    private val themeMode = MutableStateFlow("跟随系统")
+    private val themeMode = MutableStateFlow(AppThemeMode.SYSTEM)
+    private val useMonet = MutableStateFlow(false)
     private val allowTasker = MutableStateFlow(true)
     private val excludeFromRecents = MutableStateFlow(false)
     private val batteryOptimizationWhitelisted = MutableStateFlow(false)
@@ -101,7 +110,6 @@ class SettingsActivity : BaseActivity() {
     private val showExportDialog = mutableStateOf(false)
     private val showLogMaxLinesDialog = mutableStateOf(false)
 
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -113,10 +121,8 @@ class SettingsActivity : BaseActivity() {
         )
         keepAliveEnabled.value = preferences.getBoolean(PreferencesKey.KEEP_ALIVE_ENABLED, false)
         appLanguage.value = preferences.getString(PreferencesKey.APP_LANGUAGE, "system") ?: "system"
-
-        // 读取主题设置，默认为跟随系统
-        val savedTheme = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
-        themeMode.value = savedTheme
+        themeMode.value = preferences.readAppThemeMode()
+        useMonet.value = preferences.readUseMonet()
 
         // 读取 Tasker 权限设置，默认为允许
         allowTasker.value = preferences.getBoolean(PreferencesKey.ALLOW_TASKER, true)
@@ -131,15 +137,16 @@ class SettingsActivity : BaseActivity() {
         loadQuickTileConfig()
         refreshBatteryOptimizationStatus()
 
-        enableEdgeToEdge()
+        applyEdgeToEdge()
         setContent {
-            val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
-            FrpTheme(themeMode = currentTheme) {
+        val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
+        CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
+            val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
+            val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
+            FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
                 Scaffold(topBar = {
-                    TopAppBar(
-                        title = {
-                            Text(stringResource(R.string.settings_title))
-                        },
+                    SmallTopAppBar(
+                        title = stringResource(R.string.settings_title),
                         navigationIcon = {
                             IconButton(onClick = { finish() }) {
                                 Icon(
@@ -153,20 +160,29 @@ class SettingsActivity : BaseActivity() {
                     Box(
                         modifier = Modifier
                             .padding(contentPadding)
+                            .consumeWindowInsets(WindowInsets.ime)
                             .verticalScroll(rememberScrollState())
                     ) {
                         SettingsContent()
                     }
-                }
 
-                // 导出配置对话框
-                if (showExportDialog.value) {
-                    ExportConfigDialog(onDismiss = { showExportDialog.value = false })
-                }
+                    // 导出配置对话框
+                    if (showExportDialog.value) {
+                        ExportConfigDialog(onDismiss = { showExportDialog.value = false })
+                    }
 
-                if (showLogMaxLinesDialog.value) {
-                    LogMaxLinesDialog(onDismiss = { showLogMaxLinesDialog.value = false })
+                    if (showLogMaxLinesDialog.value) {
+                        LogMaxLinesDialog(
+                            initialMaxLines = logMaxLines.value,
+                            onConfirm = { maxLines ->
+                                preferences.edit().putInt(PreferencesKey.LOG_MAX_LINES, maxLines).apply()
+                                logMaxLines.value = maxLines
+                            },
+                            onDismiss = { showLogMaxLinesDialog.value = false },
+                        )
+                    }
                 }
+            }
             }
         }
     }
@@ -179,7 +195,8 @@ class SettingsActivity : BaseActivity() {
         val currentLogMaxLines by logMaxLines.collectAsStateWithLifecycle(DEFAULT_LOG_MAX_LINES)
         val isKeepAliveEnabled by keepAliveEnabled.collectAsStateWithLifecycle(false)
         val currentLanguage by appLanguage.collectAsStateWithLifecycle("system")
-        val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
+        val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
+        val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
         val isTaskerAllowed by allowTasker.collectAsStateWithLifecycle(true)
         val isExcludeFromRecents by excludeFromRecents.collectAsStateWithLifecycle(false)
         val isBatteryOptimizationWhitelisted by batteryOptimizationWhitelisted.collectAsStateWithLifecycle(false)
@@ -192,18 +209,8 @@ class SettingsActivity : BaseActivity() {
             "zh" to stringResource(R.string.language_chinese),
             "en" to stringResource(R.string.language_english)
         )
-        val currentLanguageLabel = languageLabelMap[currentLanguage]
-            ?: languageLabelMap["system"].orEmpty()
 
-        val themeOptions = listOf("深色", "浅色", "跟随系统", "MIUI风格")
-        val themeLabelMap = mapOf(
-            "深色" to stringResource(R.string.theme_dark),
-            "浅色" to stringResource(R.string.theme_light),
-            "跟随系统" to stringResource(R.string.theme_follow_system),
-            "MIUI风格" to stringResource(R.string.theme_miuix)
-        )
-        val currentThemeLabel = themeLabelMap[currentTheme]
-            ?: themeLabelMap["跟随系统"].orEmpty()
+        val themeOptions = AppThemeMode.entries
 
         Column(
             modifier = Modifier
@@ -212,32 +219,40 @@ class SettingsActivity : BaseActivity() {
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             SettingsSection {
-                SettingItemWithDropdown(
+                OverlaySpinnerPreference(
                     title = stringResource(R.string.language_title),
-                    currentValue = currentLanguageLabel,
-                    options = languageOptions.map { languageLabelMap[it].orEmpty() },
-                    onValueChange = { selected ->
-                        val newLanguage = languageOptions.firstOrNull {
-                            languageLabelMap[it] == selected
-                        } ?: "system"
+                    items = languageOptions.map { SpinnerEntry(title = languageLabelMap[it]) },
+                    selectedIndex = languageOptions.indexOf(currentLanguage).coerceAtLeast(0),
+                    onSelectedIndexChange = { idx ->
+                        val newLanguage = languageOptions[idx]
                         if (newLanguage != appLanguage.value) {
                             preferences.edit().putString(PreferencesKey.APP_LANGUAGE, newLanguage).apply()
                             appLanguage.value = newLanguage
                             recreate()
                         }
-                    }
+                    },
                 )
-                SectionDivider()
-                SettingItemWithDropdown(
+                OverlaySpinnerPreference(
                     title = stringResource(R.string.theme_mode),
-                    currentValue = currentThemeLabel,
-                    options = themeOptions.map { themeLabelMap[it].orEmpty() },
-                    onValueChange = { selected ->
-                        val newTheme = themeOptions.firstOrNull {
-                            themeLabelMap[it] == selected
-                        } ?: "跟随系统"
-                        preferences.edit().putString(PreferencesKey.THEME_MODE, newTheme).apply()
-                        themeMode.value = newTheme
+                    items = themeOptions.map { SpinnerEntry(title = stringResource(it.labelRes)) },
+                    selectedIndex = themeOptions.indexOf(currentTheme).coerceAtLeast(0),
+                    onSelectedIndexChange = { idx ->
+                        val newTheme = themeOptions[idx]
+                        if (newTheme != themeMode.value) {
+                            preferences.edit().putAppThemeMode(newTheme).apply()
+                            AppCompatDelegate.setDefaultNightMode(newTheme.nightMode)
+                            themeMode.value = newTheme
+                            recreate()
+                        }
+                    },
+                )
+                SettingItemWithSwitch(
+                    title = stringResource(R.string.theme_use_monet),
+                    checked = currentUseMonet,
+                    onCheckedChange = { checked ->
+                        preferences.edit().putUseMonet(checked).apply()
+                        useMonet.value = checked
+                        recreate()
                     }
                 )
             }
@@ -251,7 +266,6 @@ class SettingsActivity : BaseActivity() {
                         isStartup.value = checked
                     }
                 )
-                SectionDivider()
                 SettingItemWithSwitch(
                     title = stringResource(R.string.keep_alive_switch),
                     checked = isKeepAliveEnabled,
@@ -266,10 +280,9 @@ class SettingsActivity : BaseActivity() {
                         keepAliveEnabled.value = checked
                     }
                 )
-                SectionDivider()
-                SettingItemWithStatus(
+                ArrowPreference(
                     title = stringResource(R.string.battery_optimization_guide_title),
-                    status = when {
+                    summary = when {
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.M ->
                             stringResource(R.string.battery_optimization_not_applicable)
                         isBatteryOptimizationWhitelisted ->
@@ -292,10 +305,9 @@ class SettingsActivity : BaseActivity() {
                         logWrapEnabled.value = checked
                     }
                 )
-                SectionDivider()
-                SettingItemWithStatus(
+                ArrowPreference(
                     title = stringResource(R.string.log_max_lines_title),
-                    status = stringResource(R.string.log_max_lines_value, currentLogMaxLines),
+                    summary = stringResource(R.string.log_max_lines_value, currentLogMaxLines),
                     onClick = {
                         showLogMaxLinesDialog.value = true
                     }
@@ -320,7 +332,6 @@ class SettingsActivity : BaseActivity() {
                         quickTileConfig.value = config
                     }
                 )
-                SectionDivider()
                 SettingItemWithSwitch(
                     title = stringResource(R.string.allow_tasker),
                     checked = isTaskerAllowed,
@@ -358,17 +369,15 @@ class SettingsActivity : BaseActivity() {
 
             SettingsSection {
                 val exportStatus by exportStatusMessage.collectAsStateWithLifecycle(null)
-                SettingItemExportConfig(
+                ArrowPreference(
                     title = stringResource(R.string.export_config),
-                    statusMessage = exportStatus,
-                    onClick = {
-                        requestExportConfig()
-                    }
+                    summary = exportStatus,
+                    onClick = { requestExportConfig() }
                 )
             }
 
             SettingsSection {
-                SettingItemClickable(
+                ArrowPreference(
                     title = stringResource(R.string.aboutButton),
                     onClick = {
                         startActivity(Intent(this@SettingsActivity, AboutActivity::class.java))
@@ -380,66 +389,10 @@ class SettingsActivity : BaseActivity() {
 
     @Composable
     fun SettingsSection(content: @Composable ColumnScope.() -> Unit) {
-        Column(
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    content = content
-                )
-            }
-        }
-    }
-
-    @Composable
-    fun SectionDivider() {
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
-        )
-    }
-
-    @Composable
-    fun SettingItemWithStatus(
-        title: String,
-        status: String,
-        onClick: () -> Unit
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onClick() }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_chevron_right_24dp),
-                    contentDescription = null,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-            Text(
-                text = status,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-            )
+            content()
         }
     }
 
@@ -449,92 +402,13 @@ class SettingsActivity : BaseActivity() {
         checked: Boolean,
         onCheckedChange: (Boolean) -> Unit
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange
-            )
-        }
-    }
-
-    @Composable
-    fun SettingItemWithDropdown(
-        title: String,
-        currentValue: String,
-        options: List<String>,
-        onValueChange: (String) -> Unit
-    ) {
-        var expanded by remember { mutableStateOf(false) }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = true }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Box {
-                Text(
-                    text = currentValue,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    options.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(option) },
-                            onClick = {
-                                onValueChange(option)
-                                expanded = false
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    fun SettingItemClickable(
-        title: String,
-        onClick: () -> Unit
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onClick() }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Icon(
-                painter = painterResource(id = R.drawable.ic_chevron_right_24dp),
-                contentDescription = null,
-                modifier = Modifier.padding(start = 8.dp)
-            )
-        }
+        BasicComponent(
+            title = title,
+            onClick = { onCheckedChange(!checked) },
+            endActions = {
+                Switch(checked = checked, onCheckedChange = onCheckedChange)
+            },
+        )
     }
 
     @Composable
@@ -550,51 +424,44 @@ class SettingsActivity : BaseActivity() {
             "${it.type.typeName}: ${it.fileName.removeSuffix(".toml")}"
         } ?: stringResource(R.string.quick_tile_not_selected)
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = true }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Box {
-                Text(
-                    text = displayValue,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                DropdownMenu(
-                    expanded = expanded,
+        val totalItems = 1 + configs.size
+
+        BasicComponent(
+            title = title,
+            summary = displayValue,
+            onClick = { expanded = true },
+            endActions = {
+                OverlayListPopup(
+                    show = expanded,
                     onDismissRequest = { expanded = false }
                 ) {
-                    // 不选择选项
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.quick_tile_not_selected)) },
-                        onClick = {
-                            onConfigChange(null)
-                            expanded = false
-                        }
-                    )
-                    // 配置列表
-                    configs.forEach { config ->
-                        DropdownMenuItem(
-                            text = {
-                                Text("${config.type.typeName}: ${config.fileName.removeSuffix(".toml")}")
-                            },
-                            onClick = {
-                                onConfigChange(config)
+                    ListPopupColumn {
+                        DropdownImpl(
+                            text = stringResource(R.string.quick_tile_not_selected),
+                            optionSize = totalItems,
+                            isSelected = currentConfig == null,
+                            index = 0,
+                            onSelectedIndexChange = {
+                                onConfigChange(null)
                                 expanded = false
                             }
                         )
+                        configs.forEachIndexed { index, config ->
+                            DropdownImpl(
+                                text = "${config.type.typeName}: ${config.fileName.removeSuffix(".toml")}",
+                                optionSize = totalItems,
+                                isSelected = currentConfig == config,
+                                index = index + 1,
+                                onSelectedIndexChange = {
+                                    onConfigChange(config)
+                                    expanded = false
+                                }
+                            )
+                        }
                     }
                 }
-            }
-        }
+            },
+        )
     }
 
     private fun loadConfigList() {
@@ -667,7 +534,7 @@ class SettingsActivity : BaseActivity() {
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MiuixTheme.textStyles.body1
                 )
                 Icon(
                     painter = painterResource(id = R.drawable.ic_export),
@@ -678,85 +545,88 @@ class SettingsActivity : BaseActivity() {
             if (statusMessage != null) {
                 Text(
                     text = statusMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray,
+                    style = MiuixTheme.textStyles.paragraph,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun ExportConfigDialog(onDismiss: () -> Unit) {
         var fileName by remember { mutableStateOf("FRP_config") }
 
-        AlertDialog(
+        OverlayDialog(
+            show = true,
+            title = stringResource(R.string.export_config_dialog_title),
             onDismissRequest = onDismiss,
-            title = { Text(stringResource(R.string.export_config_dialog_title)) },
-            text = {
-                OutlinedTextField(
-                    value = fileName,
-                    onValueChange = { fileName = it },
-                    label = { Text(stringResource(R.string.export_config_file_name)) },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        launchExportDocument(fileName)
-                        onDismiss()
+            content = {
+                Column {
+                    TextField(
+                        value = fileName,
+                        onValueChange = { fileName = it },
+                        label = stringResource(R.string.export_config_file_name),
+                        singleLine = true
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                    ) {
+                        TextButton(
+                            text = stringResource(R.string.dismiss),
+                            onClick = onDismiss
+                        )
+                        Button(onClick = {
+                            launchExportDocument(fileName)
+                            onDismiss()
+                        }) {
+                            Text(stringResource(R.string.confirm))
+                        }
                     }
-                ) {
-                    Text(stringResource(R.string.confirm))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.dismiss))
                 }
             }
         )
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun LogMaxLinesDialog(onDismiss: () -> Unit) {
-        var input by remember { mutableStateOf(logMaxLines.value.toString()) }
+    fun LogMaxLinesDialog(initialMaxLines: Int, onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
+        var input by remember { mutableStateOf(initialMaxLines.toString()) }
 
-        AlertDialog(
+        OverlayDialog(
+            show = true,
+            title = stringResource(R.string.log_max_lines_title),
             onDismissRequest = onDismiss,
-            title = { Text(stringResource(R.string.log_max_lines_title)) },
-            text = {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { value ->
-                        input = value.filter { it.isDigit() }.take(3)
-                    },
-                    label = { Text(stringResource(R.string.log_max_lines_hint)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val parsed = input.toIntOrNull()
-                        val maxLines = sanitizeLogMaxLines(parsed ?: DEFAULT_LOG_MAX_LINES)
-                        preferences.edit().putInt(PreferencesKey.LOG_MAX_LINES, maxLines).apply()
-                        logMaxLines.value = maxLines
-                        onDismiss()
+            content = {
+                Column {
+                    TextField(
+                        value = input,
+                        onValueChange = { value ->
+                            input = value.filter { it.isDigit() }.take(3)
+                        },
+                        label = stringResource(R.string.log_max_lines_hint),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(
+                            text = stringResource(R.string.dismiss),
+                            onClick = onDismiss,
+                        )
+                        TextButton(
+                            text = stringResource(R.string.confirm),
+                            onClick = {
+                                val parsed = input.toIntOrNull()
+                                onConfirm(sanitizeLogMaxLines(parsed ?: DEFAULT_LOG_MAX_LINES))
+                                onDismiss()
+                            },
+                        )
                     }
-                ) {
-                    Text(stringResource(R.string.confirm))
                 }
             },
-            dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.dismiss))
-                }
-            }
         )
     }
 

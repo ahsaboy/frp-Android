@@ -14,17 +14,13 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.core.content.edit
-import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.gestures.rememberScrollableState
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,21 +32,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -65,6 +46,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -75,12 +57,13 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import io.github.acedroidx.frp.ui.theme.AppThemeMode
 import io.github.acedroidx.frp.ui.theme.FrpTheme
+import io.github.acedroidx.frp.ui.theme.readAppThemeMode
+import io.github.acedroidx.frp.ui.theme.readUseMonet
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.OutlinedButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -90,6 +73,31 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipInputStream
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarResult
+import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Edit
+import top.yukonga.miuix.kmp.icon.extended.ExpandLess
+import top.yukonga.miuix.kmp.icon.extended.ExpandMore
+import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.window.WindowBottomSheet
+import androidx.compose.ui.unit.DpSize
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 
 class MainActivity : BaseActivity() {
@@ -98,7 +106,8 @@ class MainActivity : BaseActivity() {
     private val frpsConfigList = MutableStateFlow<List<FrpConfig>>(emptyList())
     private val runningConfigList = MutableStateFlow<List<FrpConfig>>(emptyList())
     private val frpVersion = MutableStateFlow("Loading...")
-    private val themeMode = MutableStateFlow("跟随系统")
+    private val themeMode = MutableStateFlow(AppThemeMode.SYSTEM)
+    private val useMonet = MutableStateFlow(false)
     private val permissionGranted = MutableStateFlow(true)
     private val logWrapEnabled = MutableStateFlow(true)
 
@@ -197,7 +206,6 @@ class MainActivity : BaseActivity() {
             updateConfigList()
         }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -228,7 +236,8 @@ class MainActivity : BaseActivity() {
         isStartup.value = preferences.getBoolean(PreferencesKey.AUTO_START, false)
         logWrapEnabled.value = preferences.getBoolean(PreferencesKey.LOG_WRAP_ENABLED, true)
         frpVersion.value = preferences.getString(PreferencesKey.FRP_VERSION, "Loading...") ?: "Loading..."
-        themeMode.value = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
+        themeMode.value = preferences.readAppThemeMode()
+        useMonet.value = preferences.readUseMonet()
         appliedLanguagePreference = preferences.getString(PreferencesKey.APP_LANGUAGE, "system") ?: "system"
 
         checkConfig()
@@ -236,27 +245,28 @@ class MainActivity : BaseActivity() {
         createBGNotificationChannel()
         checkAndRequestPermissions()
 
-        enableEdgeToEdge()
+        applyEdgeToEdge()
         setContent {
-            val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
+        val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
+        CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
+            val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
+            val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
             val openDialog = remember { mutableStateOf(false) }
             val snackbarHostState = remember { SnackbarHostState() }
             val permissionGranted by permissionGranted.collectAsStateWithLifecycle(true)
 
-            FrpTheme(themeMode = currentTheme) {
+            FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
                 val frpVersion by frpVersion.collectAsStateWithLifecycle("Loading...")
                 Scaffold(
                     topBar = {
-                        TopAppBar(
-                            title = {
-                                Text("${stringResource(R.string.frp_for_android)} - ${BuildConfig.VERSION_NAME}/$frpVersion")
-                            },
+                        SmallTopAppBar(
+                            title = "${stringResource(R.string.frp_for_android)} - ${BuildConfig.VERSION_NAME}/$frpVersion",
                             actions = {
                                 IconButton(onClick = {
                                     startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
                                 }) {
                                     Icon(
-                                        painter = painterResource(id = R.drawable.ic_settings_24dp),
+                                        imageVector = MiuixIcons.Settings,
                                         contentDescription = stringResource(R.string.settings_content_desc)
                                     )
                                 }
@@ -268,13 +278,13 @@ class MainActivity : BaseActivity() {
                             onClick = { openDialog.value = true }
                         ) {
                             Icon(
-                                painter = painterResource(id = android.R.drawable.ic_input_add),
+                                imageVector = MiuixIcons.Add,
                                 contentDescription = stringResource(R.string.addConfigButton)
                             )
                         }
                     },
                     snackbarHost = {
-                        SnackbarHost(hostState = snackbarHostState)
+                        SnackbarHost(state = snackbarHostState)
                     }
                 ) { contentPadding ->
                     // Screen content
@@ -282,20 +292,18 @@ class MainActivity : BaseActivity() {
                         modifier = Modifier
                             .padding(contentPadding)
                             .verticalScroll(rememberScrollState())
-                            .scrollable(
-                                orientation = Orientation.Vertical,
-                                state = rememberScrollableState { delta -> 0f })
                     ) {
                         MainContent()
                     }
-                }
-                if (openDialog.value) {
-                    CreateConfigDialog { openDialog.value = false }
-                }
 
-                // 导入类型选择对话框
-                if (showImportTypeDialog.value) {
-                    ImportTypeDialog { showImportTypeDialog.value = false }
+                    if (openDialog.value) {
+                        CreateConfigDialog { openDialog.value = false }
+                    }
+
+                    // 导入类型选择对话框
+                    if (showImportTypeDialog.value) {
+                        ImportTypeDialog { showImportTypeDialog.value = false }
+                    }
                 }
 
                 // 显示权限提示
@@ -304,8 +312,8 @@ class MainActivity : BaseActivity() {
                     if (!permissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         scope.launch {
                             val result = snackbarHostState.showSnackbar(
-                                message = "通知权限未授予，后台运行通知将无法显示",
-                                actionLabel = "去设置",
+                                message = getString(R.string.permission_notification_snackbar_message),
+                                actionLabel = getString(R.string.open_settings),
                                 withDismissAction = true
                             )
                             if (result == SnackbarResult.ActionPerformed) {
@@ -318,6 +326,7 @@ class MainActivity : BaseActivity() {
                         }
                     }
                 }
+            }
             }
         }
 
@@ -345,11 +354,11 @@ class MainActivity : BaseActivity() {
                 )
             }
             if (frpcConfigList.isNotEmpty()) {
-                Text("frpc", style = MaterialTheme.typography.titleLarge)
+                Text("frpc", style = MiuixTheme.textStyles.headline1)
             }
             frpcConfigList.forEach { config -> FrpConfigItem(config) }
             if (frpsConfigList.isNotEmpty()) {
-                Text("frps", style = MaterialTheme.typography.titleLarge)
+                Text("frps", style = MiuixTheme.textStyles.headline1)
             }
             frpsConfigList.forEach { config -> FrpConfigItem(config) }
         }
@@ -386,10 +395,7 @@ class MainActivity : BaseActivity() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                ),
+                cornerRadius = 12.dp,
                 onClick = {
                     if (mBound) {
                         showLog.value = !showLog.value
@@ -412,16 +418,25 @@ class MainActivity : BaseActivity() {
                         if (isRunning) {
                             Text(
                                 stringResource(R.string.quick_tile_running),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = MiuixTheme.colorScheme.primary
                             )
                         }
                     }
-                    Text(
-                        text = if (showLog.value) "▲" else "▼",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 8.dp)
+                    Icon(
+                        imageVector = if (showLog.value) {
+                            MiuixIcons.ExpandLess
+                        } else {
+                            MiuixIcons.ExpandMore
+                        },
+                        contentDescription = stringResource(
+                            if (showLog.value) {
+                                R.string.collapse
+                            } else {
+                                R.string.expand
+                            }
+                        ),
+                        modifier = Modifier.padding(horizontal = 8.dp),
                     )
                     IconButton(
                         onClick = { startConfigActivity(config) },
@@ -429,7 +444,7 @@ class MainActivity : BaseActivity() {
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.ic_pencil_24dp),
+                            imageVector = MiuixIcons.Edit,
                             contentDescription = stringResource(R.string.edit_config),
                             modifier = Modifier.size(28.dp)
                         )
@@ -442,7 +457,7 @@ class MainActivity : BaseActivity() {
                         modifier = Modifier.size(32.dp,28.dp)
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.ic_baseline_delete_24),
+                            imageVector = MiuixIcons.Delete,
                             contentDescription = stringResource(R.string.delete_config),
                             modifier = Modifier.size(28.dp)
                         )
@@ -489,8 +504,7 @@ class MainActivity : BaseActivity() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    shape = RoundedCornerShape(8.dp)
+                    cornerRadius = 8.dp
                 ) {
                     Column(
                         modifier = Modifier.padding(12.dp)
@@ -502,19 +516,18 @@ class MainActivity : BaseActivity() {
                         ) {
                             Text(
                                 stringResource(R.string.frp_log),
-                                style = MaterialTheme.typography.titleSmall
+                                style = MiuixTheme.textStyles.title3
                             )
                             Button(
                                 onClick = {
                                     if (mBound) {
                                         mService.clearConfigLog(config)
                                     }
-                                },
-                                modifier = Modifier.size(width = 80.dp, height = 35.dp)
+                                }
                             ) {
                                 Text(
                                     stringResource(R.string.deleteButton),
-                                    style = MaterialTheme.typography.labelSmall
+                                    style = MiuixTheme.textStyles.footnote2
                                 )
                             }
                         }
@@ -529,7 +542,7 @@ class MainActivity : BaseActivity() {
                             val horizontalScrollState = rememberScrollState()
                             Text(
                                 text = ansiLog,
-                                style = MaterialTheme.typography.bodySmall.merge(fontFamily = FontFamily.Monospace),
+                                style = MiuixTheme.textStyles.paragraph.merge(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
                                 softWrap = isLogWrapEnabled,
                                 modifier = Modifier
                                     .padding(vertical = 4.dp)
@@ -549,136 +562,132 @@ class MainActivity : BaseActivity() {
 
         // 删除确认对话框
         if (showDeleteDialog.value) {
-            AlertDialog(
+            OverlayDialog(
+                show = true,
+                title = stringResource(R.string.confirm_delete_title),
                 onDismissRequest = { showDeleteDialog.value = false },
-                title = { Text(stringResource(R.string.confirm_delete_title)) },
-                text = { Text(stringResource(R.string.confirm_delete_message, config.fileName)) },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            deleteConfig(config)
-                            showDeleteDialog.value = false
-                        }
+                content = {
+                    Text(stringResource(R.string.confirm_delete_message, config.fileName))
+                    Row(
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(stringResource(R.string.deleteConfigButton))
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { showDeleteDialog.value = false }
-                    ) {
-                        Text(stringResource(R.string.dismiss))
+                        TextButton(
+                            text = stringResource(R.string.dismiss),
+                            onClick = { showDeleteDialog.value = false }
+                        )
+                        TextButton(
+                            text = stringResource(R.string.deleteConfigButton),
+                            onClick = {
+                                deleteConfig(config)
+                                showDeleteDialog.value = false
+                            }
+                        )
                     }
                 }
             )
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     @Preview(showBackground = true)
     fun CreateConfigDialog(onClose: () -> Unit = {}) {
-        BasicAlertDialog(onDismissRequest = { onClose() }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(16.dp),
-            ) {
+        OverlayDialog(
+            show = true,
+            title = stringResource(R.string.create_frp_select),
+            onDismissRequest = { onClose() },
+            content = {
+                // 创建配置按钮
+                Row(
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Button(onClick = { startConfigActivity(FrpType.FRPC);onClose() }) {
+                        Text("frpc")
+                    }
+                    Button(onClick = { startConfigActivity(FrpType.FRPS);onClose() }) {
+                        Text("frps")
+                    }
+                }
+
+                // 导入配置按钮
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        stringResource(R.string.create_frp_select),
+                        stringResource(R.string.import_config),
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.titleLarge
+                        style = MiuixTheme.textStyles.title2
                     )
-                    // 创建配置按钮
                     Row(
                         horizontalArrangement = Arrangement.SpaceAround,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Button(onClick = { startConfigActivity(FrpType.FRPC);onClose() }) {
-                            Text("frpc")
-                        }
-                        Button(onClick = { startConfigActivity(FrpType.FRPS);onClose() }) {
-                            Text("frps")
-                        }
-                    }
-
-                    // 导入配置按钮
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            stringResource(R.string.import_config),
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceAround,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            OutlinedButton(onClick = {
+                        TextButton(
+                            text = stringResource(R.string.import_zip),
+                            onClick = {
                                 zipFileLauncher.launch("application/zip")
                                 onClose()
-                            }) {
-                                Text(stringResource(R.string.import_zip))
                             }
-                            OutlinedButton(onClick = {
+                        )
+                        TextButton(
+                            text = stringResource(R.string.import_toml),
+                            onClick = {
                                 tomlFileLauncher.launch("*/*")
                                 onClose()
-                            }) {
-                                Text(stringResource(R.string.import_toml))
                             }
-                        }
+                        )
                     }
                 }
             }
-        }
+        )
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun ImportTypeDialog(onDismiss: () -> Unit) {
-        AlertDialog(
+        OverlayDialog(
+            show = true,
+            title = stringResource(R.string.import_select_type),
             onDismissRequest = onDismiss,
-            title = { Text(stringResource(R.string.import_select_type)) },
-            text = { Text(stringResource(R.string.import_select_type_desc)) },
-            confirmButton = {
+            content = {
+                Text(stringResource(R.string.import_select_type_desc))
                 Row(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    TextButton(onClick = {
-                        pendingImportFile?.let { uri ->
-                            lifecycleScope.launch {
-                                importTomlFile(uri, FrpType.FRPC)
+                    TextButton(
+                        text = "FRPC",
+                        onClick = {
+                            pendingImportFile?.let { uri ->
+                                lifecycleScope.launch {
+                                    importTomlFile(uri, FrpType.FRPC)
+                                }
                             }
+                            onDismiss()
                         }
-                        onDismiss()
-                    }) {
-                        Text("FRPC")
-                    }
-                    TextButton(onClick = {
-                        pendingImportFile?.let { uri ->
-                            lifecycleScope.launch {
-                                importTomlFile(uri, FrpType.FRPS)
+                    )
+                    TextButton(
+                        text = "FRPS",
+                        onClick = {
+                            pendingImportFile?.let { uri ->
+                                lifecycleScope.launch {
+                                    importTomlFile(uri, FrpType.FRPS)
+                                }
                             }
+                            onDismiss()
                         }
-                        onDismiss()
-                    }) {
-                        Text("FRPS")
-                    }
+                    )
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.dismiss))
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TextButton(
+                        text = stringResource(R.string.dismiss),
+                        onClick = onDismiss
+                    )
                 }
             }
         )
@@ -688,14 +697,18 @@ class MainActivity : BaseActivity() {
         super.onResume()
         val currentLanguagePreference =
             preferences.getString(PreferencesKey.APP_LANGUAGE, "system") ?: "system"
-        if (currentLanguagePreference != appliedLanguagePreference) {
+        val currentThemePreference = preferences.readAppThemeMode()
+        val currentUseMonet = preferences.readUseMonet()
+        if (currentLanguagePreference != appliedLanguagePreference ||
+            currentThemePreference != themeMode.value ||
+            currentUseMonet != useMonet.value
+        ) {
             appliedLanguagePreference = currentLanguagePreference
+            themeMode.value = currentThemePreference
+            useMonet.value = currentUseMonet
             recreate()
             return
         }
-        // 从 SharedPreferences 重新加载主题设置
-        val savedTheme = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
-        themeMode.value = savedTheme
         logWrapEnabled.value = preferences.getBoolean(PreferencesKey.LOG_WRAP_ENABLED, true)
 
         // 重新应用"最近任务中排除"设置

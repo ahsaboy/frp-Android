@@ -3,14 +3,13 @@ package io.github.acedroidx.frp
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.appcompat.app.AppCompatActivity
 
 class AutoStartBroadReceiver : BroadcastReceiver() {
     private val bootAction = Intent.ACTION_BOOT_COMPLETED
     private val packageReplacedAction = Intent.ACTION_MY_PACKAGE_REPLACED
 
     override fun onReceive(context: Context, intent: Intent) {
-        val preferences = context.getSharedPreferences("data", AppCompatActivity.MODE_PRIVATE)
+        val preferences = context.getSharedPreferences("data", Context.MODE_PRIVATE)
         val receivedAction = intent.action ?: return
         val keepAliveEnabled = preferences.getBoolean(PreferencesKey.KEEP_ALIVE_ENABLED, false)
 

@@ -1,6 +1,8 @@
 package io.github.acedroidx.frp.config.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,19 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,9 +17,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.FieldSchema
 import io.github.acedroidx.frp.config.FieldType
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun FieldRenderer(
@@ -58,11 +60,10 @@ private fun StringField(
     onChange: (Any?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    OutlinedTextField(
+    TextField(
         value = value,
         onValueChange = { onChange(it) },
-        label = { Text(field.label) },
-        placeholder = { if (field.hint.isNotEmpty()) Text(field.hint) },
+        label = field.label,
         singleLine = true,
         modifier = modifier.fillMaxWidth(),
     )
@@ -76,15 +77,14 @@ private fun IntField(
     modifier: Modifier = Modifier,
 ) {
     var textValue by remember(value) { mutableStateOf(value?.toString() ?: "") }
-    OutlinedTextField(
+    TextField(
         value = textValue,
         onValueChange = {
             textValue = it
             val parsed = it.toIntOrNull()
             if (parsed != null) onChange(parsed) else if (it.isEmpty()) onChange(null)
         },
-        label = { Text(field.label) },
-        placeholder = { if (field.hint.isNotEmpty()) Text(field.hint) },
+        label = field.label,
         singleLine = true,
         modifier = modifier.fillMaxWidth(),
     )
@@ -98,14 +98,14 @@ private fun LongField(
     modifier: Modifier = Modifier,
 ) {
     var textValue by remember(value) { mutableStateOf(value?.toString() ?: "") }
-    OutlinedTextField(
+    TextField(
         value = textValue,
         onValueChange = {
             textValue = it
             val parsed = it.toLongOrNull()
             if (parsed != null) onChange(parsed) else if (it.isEmpty()) onChange(null)
         },
-        label = { Text(field.label) },
+        label = field.label,
         singleLine = true,
         modifier = modifier.fillMaxWidth(),
     )
@@ -118,17 +118,16 @@ private fun BoolField(
     onChange: (Any?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(field.label, style = MaterialTheme.typography.bodyLarge)
-        Switch(checked = value, onCheckedChange = { onChange(it) })
-    }
+    BasicComponent(
+        modifier = modifier,
+        title = field.label,
+        onClick = { onChange(!value) },
+        endActions = {
+            Switch(checked = value, onCheckedChange = { onChange(it) })
+        },
+    )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EnumField(
     field: FieldSchema,
@@ -137,28 +136,40 @@ private fun EnumField(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        OutlinedTextField(
-            value = value.ifEmpty { field.defaultValue?.toString() ?: "" },
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(field.label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor().fillMaxWidth(),
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            for (option in field.enumOptions) {
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onChange(option)
-                        expanded = false
-                    },
-                )
+    val displayValue = value.ifEmpty { field.defaultValue?.toString() ?: "" }
+    Box(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = field.label,
+                style = MiuixTheme.textStyles.body1,
+            )
+            Text(
+                text = displayValue,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.primary,
+            )
+        }
+        OverlayListPopup(show = expanded, onDismissRequest = { expanded = false }) {
+            ListPopupColumn {
+                field.enumOptions.forEachIndexed { index, option ->
+                    DropdownImpl(
+                        text = option,
+                        optionSize = field.enumOptions.size,
+                        isSelected = value == option,
+                        index = index,
+                        onSelectedIndexChange = {
+                            onChange(option)
+                            expanded = false
+                        },
+                    )
+                }
             }
         }
     }
@@ -172,10 +183,10 @@ private fun StringListField(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(field.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 4.dp))
+        Text(field.label, style = MiuixTheme.textStyles.body2, modifier = Modifier.padding(bottom = 4.dp))
         for ((index, item) in value.withIndex()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
+                TextField(
                     value = item,
                     onValueChange = { newVal ->
                         val newList = value.toMutableList()
@@ -190,7 +201,10 @@ private fun StringListField(
                     newList.removeAt(index)
                     onChange(newList)
                 }) {
-                    Icon(Icons.Default.Delete, contentDescription = "删除")
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_baseline_delete_24),
+                        contentDescription = stringResource(R.string.delete_item)
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
@@ -200,7 +214,10 @@ private fun StringListField(
             newList.add("")
             onChange(newList)
         }) {
-            Icon(Icons.Default.Add, contentDescription = "添加")
+            Icon(
+                painter = painterResource(id = R.drawable.ic_add_24dp),
+                contentDescription = stringResource(R.string.add_item)
+            )
         }
     }
 }
@@ -213,19 +230,19 @@ private fun MapField(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(field.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 4.dp))
+        Text(field.label, style = MiuixTheme.textStyles.body2, modifier = Modifier.padding(bottom = 4.dp))
         for ((key, v) in value) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
+                TextField(
                     value = key,
                     onValueChange = {},
                     readOnly = true,
                     singleLine = true,
-                    label = { Text("Key") },
+                    label = stringResource(R.string.field_key_label),
                     modifier = Modifier.weight(0.4f),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                OutlinedTextField(
+                TextField(
                     value = v,
                     onValueChange = { newVal ->
                         val newMap = value.toMutableMap()
@@ -233,7 +250,7 @@ private fun MapField(
                         onChange(newMap)
                     },
                     singleLine = true,
-                    label = { Text("Value") },
+                    label = stringResource(R.string.field_value_label),
                     modifier = Modifier.weight(0.5f),
                 )
                 IconButton(onClick = {
@@ -241,7 +258,10 @@ private fun MapField(
                     newMap.remove(key)
                     onChange(newMap)
                 }) {
-                    Icon(Icons.Default.Delete, contentDescription = "删除")
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_baseline_delete_24),
+                        contentDescription = stringResource(R.string.delete_item)
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
@@ -259,19 +279,19 @@ private fun AddMapEntryButton(onAdd: (String, String) -> Unit) {
     var key by remember { mutableStateOf("") }
     var value by remember { mutableStateOf("") }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
+        TextField(
             value = key,
             onValueChange = { key = it },
             singleLine = true,
-            label = { Text("Key") },
+            label = stringResource(R.string.field_key_label),
             modifier = Modifier.weight(0.4f),
         )
         Spacer(modifier = Modifier.width(8.dp))
-        OutlinedTextField(
+        TextField(
             value = value,
             onValueChange = { value = it },
             singleLine = true,
-            label = { Text("Value") },
+            label = stringResource(R.string.field_value_label),
             modifier = Modifier.weight(0.4f),
         )
         IconButton(onClick = {
@@ -281,7 +301,10 @@ private fun AddMapEntryButton(onAdd: (String, String) -> Unit) {
                 value = ""
             }
         }) {
-            Icon(Icons.Default.Add, contentDescription = "添加")
+            Icon(
+                painter = painterResource(id = R.drawable.ic_add_24dp),
+                contentDescription = stringResource(R.string.add_item)
+            )
         }
     }
 }
