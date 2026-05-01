@@ -1,0 +1,88 @@
+package io.github.acedroidx.frp.ui.theme
+
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import top.yukonga.miuix.kmp.theme.Colors
+
+fun Colors.toMaterial3ColorScheme(): ColorScheme {
+    return lightColorScheme(
+        primary = primary,
+        onPrimary = onPrimary,
+        primaryContainer = primaryContainer,
+        onPrimaryContainer = onPrimaryContainer,
+        secondary = secondaryVariant,
+        onSecondary = onSecondaryVariant,
+        secondaryContainer = secondaryContainer,
+        onSecondaryContainer = onSecondaryContainer,
+        tertiary = onTertiaryContainer,
+        onTertiary = tertiaryContainer,
+        tertiaryContainer = tertiaryContainer,
+        onTertiaryContainer = onTertiaryContainer,
+        error = error,
+        onError = onError,
+        errorContainer = errorContainer,
+        onErrorContainer = onErrorContainer,
+        background = background,
+        onBackground = onBackground,
+        surface = surface,
+        onSurface = onSurface,
+        surfaceVariant = surfaceVariant,
+        onSurfaceVariant = onSurfaceVariantSummary,
+        surfaceTint = primary,
+        outline = outline,
+        outlineVariant = dividerLine,
+        scrim = windowDimming,
+        inverseSurface = onSurface,
+        inverseOnSurface = surface,
+        inversePrimary = primaryVariant,
+        surfaceBright = surfaceContainerHighest,
+        surfaceDim = background,
+        surfaceContainerLowest = surface,
+        surfaceContainerLow = surfaceContainer,
+        surfaceContainer = surfaceContainer,
+        surfaceContainerHigh = surfaceContainerHigh,
+        surfaceContainerHighest = surfaceContainerHighest,
+    )
+}
+
+fun Colors.toMaterial3DarkColorScheme(): ColorScheme {
+    return darkColorScheme(
+        primary = primary,
+        onPrimary = onPrimary,
+        primaryContainer = primaryContainer,
+        onPrimaryContainer = onPrimaryContainer,
+        secondary = secondaryVariant,
+        onSecondary = onSecondaryVariant,
+        secondaryContainer = secondaryContainer,
+        onSecondaryContainer = onSecondaryContainer,
+        tertiary = onTertiaryContainer,
+        onTertiary = tertiaryContainer,
+        tertiaryContainer = tertiaryContainer,
+        onTertiaryContainer = onTertiaryContainer,
+        error = error,
+        onError = onError,
+        errorContainer = errorContainer,
+        onErrorContainer = onErrorContainer,
+        background = background,
+        onBackground = onBackground,
+        surface = surface,
+        onSurface = onSurface,
+        surfaceVariant = surfaceVariant,
+        onSurfaceVariant = onSurfaceVariantSummary,
+        surfaceTint = primary,
+        outline = outline,
+        outlineVariant = dividerLine,
+        scrim = windowDimming,
+        inverseSurface = onSurface,
+        inverseOnSurface = surface,
+        inversePrimary = primaryVariant,
+        surfaceBright = surfaceContainerHighest,
+        surfaceDim = background,
+        surfaceContainerLowest = surface,
+        surfaceContainerLow = surfaceContainer,
+        surfaceContainer = surfaceContainer,
+        surfaceContainerHigh = surfaceContainerHigh,
+        surfaceContainerHighest = surfaceContainerHighest,
+    )
+}

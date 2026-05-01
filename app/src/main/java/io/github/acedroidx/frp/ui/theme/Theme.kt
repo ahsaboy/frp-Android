@@ -13,6 +13,8 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import top.yukonga.miuix.kmp.theme.darkColorScheme as miuixDarkColorScheme
+import top.yukonga.miuix.kmp.theme.lightColorScheme as miuixLightColorScheme
 
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
@@ -48,18 +50,23 @@ fun FrpTheme(
     val useDarkTheme = when (themeMode) {
         "深色" -> true
         "浅色" -> false
-        "跟随系统", null -> darkTheme
+        "跟随系统", "MIUI风格", null -> darkTheme
         else -> darkTheme
     }
 
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (useDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    val colorScheme = when (themeMode) {
+        "MIUI风格" -> {
+            val miuixColors = if (useDarkTheme) miuixDarkColorScheme() else miuixLightColorScheme()
+            if (useDarkTheme) miuixColors.toMaterial3DarkColorScheme() else miuixColors.toMaterial3ColorScheme()
         }
-
-        useDarkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        else -> when {
+            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                val context = LocalContext.current
+                if (useDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            }
+            useDarkTheme -> DarkColorScheme
+            else -> LightColorScheme
+        }
     }
 
     // 动态设置状态栏文字颜色，跟随应用主题而非系统模式

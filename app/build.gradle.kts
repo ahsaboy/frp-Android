@@ -39,8 +39,8 @@ android {
     defaultConfig {
         applicationId = "io.github.acedroidx.frp"
         minSdk = 23
-        targetSdk = 35
-        compileSdk = 35
+        targetSdk = 37
+        compileSdk = 37
         versionCode = 23
         versionName = "1.5.6"
 
@@ -132,6 +132,9 @@ dependencies {
 
     // TOML parsing/serialization
     implementation("com.akuleshov7:ktoml-core:0.5.2")
+
+    // Miuix theme (HyperOS style colors)
+    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.0")
 
     // Tasker Plugin Library
     implementation("com.joaomgcd:taskerpluginlibrary:0.4.10")
