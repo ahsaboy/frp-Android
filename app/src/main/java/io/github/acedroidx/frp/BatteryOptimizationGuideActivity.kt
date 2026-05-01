@@ -8,20 +8,14 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -29,34 +23,48 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.acedroidx.frp.ui.theme.AppThemeMode
 import io.github.acedroidx.frp.ui.theme.FrpTheme
+import io.github.acedroidx.frp.ui.theme.readAppThemeMode
+import io.github.acedroidx.frp.ui.theme.readUseMonet
 import kotlinx.coroutines.flow.MutableStateFlow
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 class BatteryOptimizationGuideActivity : BaseActivity() {
     private val batteryOptimizationWhitelisted = MutableStateFlow(false)
-    private val themeMode = MutableStateFlow("跟随系统")
+    private val themeMode = MutableStateFlow(AppThemeMode.SYSTEM)
+    private val useMonet = MutableStateFlow(false)
 
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val preferences = getSharedPreferences("data", MODE_PRIVATE)
-        themeMode.value = preferences.getString(PreferencesKey.THEME_MODE, "跟随系统") ?: "跟随系统"
+        themeMode.value = preferences.readAppThemeMode()
+        useMonet.value = preferences.readUseMonet()
         refreshBatteryOptimizationStatus()
 
-        enableEdgeToEdge()
+        applyEdgeToEdge()
         setContent {
-            val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
-            FrpTheme(themeMode = currentTheme) {
+        val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
+        CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
+            val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
+            val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
+            FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
                 Scaffold(
                     topBar = {
-                        TopAppBar(
-                            title = { Text(stringResource(R.string.battery_optimization_guide_title)) },
+                        SmallTopAppBar(
+                            title = stringResource(R.string.battery_optimization_guide_title),
                             navigationIcon = {
                                 IconButton(onClick = { finish() }) {
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_arrow_back_24dp),
-                                        contentDescription = stringResource(R.string.dismiss)
+                                        contentDescription = stringResource(R.string.back)
                                     )
                                 }
                             }
@@ -68,6 +76,7 @@ class BatteryOptimizationGuideActivity : BaseActivity() {
                         isWhitelisted = batteryOptimizationWhitelisted.collectAsStateWithLifecycle(false).value
                     )
                 }
+            }
             }
         }
     }
@@ -91,12 +100,12 @@ class BatteryOptimizationGuideActivity : BaseActivity() {
         ) {
             Text(
                 text = statusText,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
+                style = MiuixTheme.textStyles.title2,
+                color = MiuixTheme.colorScheme.primary
             )
             Text(
                 text = stringResource(R.string.battery_optimization_guide_desc),
-                style = MaterialTheme.typography.bodyMedium
+                style = MiuixTheme.textStyles.body2
             )
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isWhitelisted) {
                 Button(
@@ -149,7 +158,11 @@ class BatteryOptimizationGuideActivity : BaseActivity() {
         try {
             startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         } catch (e: Exception) {
-            Toast.makeText(this, e.message ?: "Unable to open settings", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                e.message ?: getString(R.string.battery_optimization_open_settings_failed),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 }

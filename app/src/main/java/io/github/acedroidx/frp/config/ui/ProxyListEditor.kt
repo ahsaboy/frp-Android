@@ -9,22 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,11 +16,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.ConfigFormViewModel
 import io.github.acedroidx.frp.config.FieldType
 import io.github.acedroidx.frp.config.SchemaHelpers
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun ProxyListEditor(
@@ -47,7 +45,11 @@ fun ProxyListEditor(
     val editingIndex by viewModel.editingProxyIndex.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text("代理列表", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+        Text(
+            stringResource(R.string.proxy_list_title),
+            style = MiuixTheme.textStyles.title2,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
 
         for ((index, proxy) in proxies.withIndex()) {
             ProxyCard(
@@ -64,9 +66,7 @@ fun ProxyListEditor(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        TextButton(onClick = { viewModel.showAddProxyDialog() }) {
-            Text("+ 添加代理")
-        }
+        TextButton(text = stringResource(R.string.proxy_add), onClick = { viewModel.showAddProxyDialog() })
     }
 
     val showAddDialog by viewModel.showAddProxyDialog.collectAsStateWithLifecycle()
@@ -90,11 +90,10 @@ private fun ProxyCard(
     viewModel: ConfigFormViewModel,
 ) {
     val proxyType = proxy["type"] as? String ?: ""
-    val proxyName = proxy["name"] as? String ?: "(未命名)"
+    val proxyName = proxy["name"] as? String ?: stringResource(R.string.config_item_unnamed)
     val typeSchema = viewModel.getProxyTypeSchema(proxyType)
 
     Card(
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -103,15 +102,22 @@ private fun ProxyCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(proxyName, style = MaterialTheme.typography.titleSmall)
-                    Text(proxyType.uppercase(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    Text(proxyName, style = MiuixTheme.textStyles.title3)
+                    Text(proxyType.uppercase(), style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "删除")
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_baseline_delete_24),
+                        contentDescription = stringResource(R.string.delete_item)
+                    )
                 }
                 Icon(
-                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
+                    painter = painterResource(
+                        if (expanded) R.drawable.ic_expand_less_24dp else R.drawable.ic_expand_more_24dp
+                    ),
+                    contentDescription = stringResource(
+                        if (expanded) R.string.collapse else R.string.expand
+                    ),
                 )
             }
 
@@ -155,7 +161,11 @@ private fun PluginSection(
     val pluginType = pluginData?.get("type") as? String ?: ""
 
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text("插件", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(bottom = 8.dp))
+        Text(
+            stringResource(R.string.plugin_title),
+            style = MiuixTheme.textStyles.title3,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
 
         // Plugin type selector
         PluginTypeSelector(
@@ -190,7 +200,6 @@ private fun PluginSection(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PluginTypeSelector(
     selectedType: String,
@@ -198,36 +207,35 @@ private fun PluginTypeSelector(
     onSelect: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val displayText = types.find { it.first == selectedType }?.second ?: selectedType
+    val allOptions = listOf(stringResource(R.string.no_plugin) to "") + types
+    val displayText = allOptions.find { it.second == selectedType }?.first ?: selectedType
 
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-    ) {
-        OutlinedTextField(
+    Column(modifier = Modifier.fillMaxWidth()) {
+        TextField(
             value = displayText,
             onValueChange = {},
+            label = stringResource(R.string.plugin_type_label),
             readOnly = true,
-            label = { Text("插件类型") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().clickable { expanded = true },
         )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text("(无)") },
-                onClick = {
-                    onSelect("")
-                    expanded = false
-                },
-            )
-            for ((type, label) in types) {
-                DropdownMenuItem(
-                    text = { Text(label) },
-                    onClick = {
-                        onSelect(type)
-                        expanded = false
-                    },
-                )
+        OverlayListPopup(
+            show = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            ListPopupColumn {
+                allOptions.forEachIndexed { index, (label, type) ->
+                    DropdownImpl(
+                        text = label,
+                        optionSize = allOptions.size,
+                        isSelected = (if (type.isEmpty()) selectedType.isEmpty() else selectedType == type),
+                        index = index,
+                        onSelectedIndexChange = {
+                            onSelect(type)
+                            expanded = false
+                        },
+                    )
+                }
             }
         }
     }
@@ -239,24 +247,26 @@ fun AddProxyTypeDialog(
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    androidx.compose.material3.AlertDialog(
+    OverlayDialog(
+        show = true,
+        title = stringResource(R.string.proxy_type_dialog_title),
         onDismissRequest = onDismiss,
-        title = { Text("选择代理类型") },
-        text = {
+        content = {
             Column {
                 for ((type, label) in types) {
                     TextButton(
+                        text = label,
                         onClick = { onSelect(type) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(label, modifier = Modifier.fillMaxWidth())
-                    }
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    TextButton(text = stringResource(R.string.dismiss), onClick = onDismiss)
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
         },
     )
 }

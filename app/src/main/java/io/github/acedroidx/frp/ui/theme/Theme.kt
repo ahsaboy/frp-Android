@@ -1,93 +1,40 @@
 package io.github.acedroidx.frp.ui.theme
 
-import android.app.Activity
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
-import top.yukonga.miuix.kmp.theme.darkColorScheme as miuixDarkColorScheme
-import top.yukonga.miuix.kmp.theme.lightColorScheme as miuixLightColorScheme
-
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
-)
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import top.yukonga.miuix.kmp.theme.ColorSchemeMode
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeController
 
 @Composable
 fun FrpTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    themeMode: String? = null,  // 新增: "深色", "浅色", "跟随系统", null
+    themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    useMonet: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    // 根据 themeMode 决定是否使用深色主题
-    val useDarkTheme = when (themeMode) {
-        "深色" -> true
-        "浅色" -> false
-        "跟随系统", "MIUI风格", null -> darkTheme
-        else -> darkTheme
+    val colorSchemeMode = when {
+        useMonet && themeMode == AppThemeMode.SYSTEM -> ColorSchemeMode.MonetSystem
+        useMonet && themeMode == AppThemeMode.LIGHT -> ColorSchemeMode.MonetLight
+        useMonet && themeMode == AppThemeMode.DARK -> ColorSchemeMode.MonetDark
+        themeMode == AppThemeMode.SYSTEM -> ColorSchemeMode.System
+        themeMode == AppThemeMode.LIGHT -> ColorSchemeMode.Light
+        themeMode == AppThemeMode.DARK -> ColorSchemeMode.Dark
+        else -> ColorSchemeMode.System
     }
-
-    val colorScheme = when (themeMode) {
-        "MIUI风格" -> {
-            val miuixColors = if (useDarkTheme) miuixDarkColorScheme() else miuixLightColorScheme()
-            if (useDarkTheme) miuixColors.toMaterial3DarkColorScheme() else miuixColors.toMaterial3ColorScheme()
-        }
-        else -> when {
-            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-                val context = LocalContext.current
-                if (useDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-            }
-            useDarkTheme -> DarkColorScheme
-            else -> LightColorScheme
+    val fallbackKeyColor = remember {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            null
+        } else {
+            Color(0xFF3482FF)
         }
     }
-
-    // 动态设置状态栏文字颜色，跟随应用主题而非系统模式
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as? Activity)?.window
-            window?.let {
-                WindowCompat.getInsetsController(it, view).apply {
-                    // useDarkTheme=true(深色主题) → 浅色文字图标
-                    // useDarkTheme=false(浅色主题) → 深色文字图标
-                    isAppearanceLightStatusBars = !useDarkTheme
-                    isAppearanceLightNavigationBars = !useDarkTheme
-                }
-            }
-        }
+    val controller = remember(colorSchemeMode, fallbackKeyColor) {
+        ThemeController(
+            colorSchemeMode = colorSchemeMode,
+            keyColor = fallbackKeyColor,
+        )
     }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    MiuixTheme(controller = controller, content = content)
 }

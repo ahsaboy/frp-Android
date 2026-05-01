@@ -88,7 +88,7 @@ object FrpcSchema {
         title = "传输",
         fields = listOf(
             FieldSchema("transport.protocol", FieldType.ENUM, "协议", defaultValue = "tcp", enumOptions = listOf("tcp", "kcp", "quic", "websocket", "wss")),
-            FieldSchema("transport.wireProtocol", FieldType.ENUM, "线路协议", defaultValue = "v1", enumOptions = listOf("v1", "v2")),
+            // FieldSchema("transport.wireProtocol", FieldType.ENUM, "线路协议", defaultValue = "v1", enumOptions = listOf("v1", "v2")),
             FieldSchema("transport.dialServerTimeout", FieldType.INT, "连接超时(秒)", defaultValue = 10),
             FieldSchema("transport.dialServerKeepalive", FieldType.INT, "连接保活(秒)", defaultValue = 7200),
             FieldSchema("transport.connectServerLocalIP", FieldType.STRING, "本地绑定 IP"),

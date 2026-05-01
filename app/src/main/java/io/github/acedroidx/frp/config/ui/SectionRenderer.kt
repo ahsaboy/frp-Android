@@ -8,24 +8,23 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.ConfigFormData
 import io.github.acedroidx.frp.config.ConfigSection
 import io.github.acedroidx.frp.config.FieldType
 import io.github.acedroidx.frp.config.SchemaHelpers
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun SectionCard(
@@ -39,7 +38,6 @@ fun SectionCard(
 
     Card(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column {
             Row(
@@ -48,12 +46,16 @@ fun SectionCard(
             ) {
                 Text(
                     text = section.title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MiuixTheme.textStyles.title2,
                     modifier = Modifier.weight(1f),
                 )
                 Icon(
-                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (expanded) "收起" else "展开",
+                    painter = painterResource(
+                        if (expanded) R.drawable.ic_expand_less_24dp else R.drawable.ic_expand_more_24dp
+                    ),
+                    contentDescription = stringResource(
+                        if (expanded) R.string.collapse else R.string.expand
+                    ),
                 )
             }
 
@@ -91,7 +93,7 @@ private fun ObjectSubSection(
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Text(
             text = field.label,
-            style = MaterialTheme.typography.titleSmall,
+            style = MiuixTheme.textStyles.title3,
             modifier = Modifier.padding(bottom = 8.dp),
         )
         for (child in field.children) {

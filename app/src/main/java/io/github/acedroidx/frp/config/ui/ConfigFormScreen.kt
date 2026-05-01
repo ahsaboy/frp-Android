@@ -11,26 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,15 +22,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.acedroidx.frp.FrpType
 import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.ConfigFormViewModel
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.TabRow
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfigFormScreen(
     configType: FrpType,
@@ -70,22 +65,36 @@ fun ConfigFormScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(if (configType == FrpType.FRPC) "frpc 配置" else "frps 配置")
-                },
+            SmallTopAppBar(
+                title = stringResource(
+                    if (configType == FrpType.FRPC) {
+                        R.string.config_form_frpc_title
+                    } else {
+                        R.string.config_form_frps_title
+                    }
+                ),
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_arrow_back_24dp),
+                            contentDescription = stringResource(R.string.back)
+                        )
                     }
                 },
                 actions = {
-                    TextButton(onClick = {
-                        if (isFormMode) viewModel.switchToTextMode()
-                        else viewModel.switchToFormMode()
-                    }) {
-                        Text(if (isFormMode) "文本模式" else "表单模式")
-                    }
+                    TextButton(
+                        text = stringResource(
+                            if (isFormMode) {
+                                R.string.config_form_text_mode
+                            } else {
+                                R.string.config_form_form_mode
+                            }
+                        ),
+                        onClick = {
+                            if (isFormMode) viewModel.switchToTextMode()
+                            else viewModel.switchToFormMode()
+                        },
+                    )
                 },
             )
         },
@@ -100,15 +109,15 @@ fun ConfigFormScreen(
                         else onSave(textContent)
                     },
                     modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColorsPrimary(),
                 ) {
                     Text(stringResource(R.string.saveConfigButton))
                 }
-                OutlinedButton(
+                TextButton(
+                    text = stringResource(R.string.dontSaveConfigButton),
                     onClick = onDontSave,
                     modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.dontSaveConfigButton))
-                }
+                )
             }
         },
         modifier = modifier,
@@ -162,21 +171,16 @@ private fun FormModeContent(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScrollableTabRow(
+        TabRow(
+            tabs = tabs,
             selectedTabIndex = currentSection.coerceIn(0, tabs.size - 1),
-            edgePadding = 0.dp,
-        ) {
-            for ((index, title) in tabs.withIndex()) {
-                Tab(
-                    selected = currentSection == index,
-                    onClick = {
-                        viewModel.setSection(index)
-                        coroutineScope.launch { pagerState.animateScrollToPage(index) }
-                    },
-                    text = { Text(title, maxLines = 1) },
-                )
-            }
-        }
+            onTabSelected = { index ->
+                viewModel.setSection(index)
+                coroutineScope.launch { pagerState.animateScrollToPage(index) }
+            },
+            minWidth = 110.dp,
+            maxWidth = 150.dp,
+        )
 
         HorizontalPager(
             state = pagerState,
@@ -220,11 +224,11 @@ private fun TextModeContent(
     text: String,
     onTextChange: (String) -> Unit,
 ) {
-    OutlinedTextField(
+    TextField(
         value = text,
         onValueChange = onTextChange,
         modifier = Modifier.fillMaxSize().padding(16.dp),
-        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+        textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
     )
 }
 
@@ -240,12 +244,12 @@ private fun ManagementSectionCard(
 
     Card(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        cornerRadius = 16.dp,
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "文件管理",
-                style = MaterialTheme.typography.titleMedium,
+                text = stringResource(R.string.config_management_title),
+                style = MiuixTheme.textStyles.title2,
                 modifier = Modifier.padding(bottom = 12.dp),
             )
 
@@ -254,10 +258,11 @@ private fun ManagementSectionCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("配置文件名", style = MaterialTheme.typography.bodyLarge)
-                TextButton(onClick = { showRenameDialog = true }) {
-                    Text(configFileName)
-                }
+                Text(stringResource(R.string.config_file_name), style = MiuixTheme.textStyles.body1)
+                TextButton(
+                    text = configFileName,
+                    onClick = { showRenameDialog = true },
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -267,7 +272,7 @@ private fun ManagementSectionCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(stringResource(R.string.auto_start_switch), style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.auto_start_switch), style = MiuixTheme.textStyles.body1)
                 Switch(checked = isAutoStart, onCheckedChange = onAutoStartChange)
             }
         }
@@ -285,7 +290,6 @@ private fun ManagementSectionCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RenameDialogInForm(
     originName: String,
@@ -293,21 +297,30 @@ private fun RenameDialogInForm(
     onDismiss: () -> Unit,
 ) {
     var text by remember { mutableStateOf(originName) }
-    AlertDialog(
-        title = { Text(stringResource(R.string.rename)) },
-        icon = {
-            Icon(painterResource(id = R.drawable.ic_rename), contentDescription = "Rename Icon")
-        },
-        text = { TextField(text, onValueChange = { text = it }) },
+    OverlayDialog(
+        show = true,
+        title = stringResource(R.string.rename),
         onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = { onConfirm("$text.toml") }) {
-                Text(stringResource(R.string.confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.dismiss))
+        content = {
+            Column {
+                TextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = stringResource(R.string.rename),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(
+                        text = stringResource(R.string.dismiss),
+                        onClick = onDismiss,
+                    )
+                    TextButton(
+                        text = stringResource(R.string.confirm),
+                        onClick = { onConfirm("$text.toml") },
+                    )
+                }
             }
         },
     )

@@ -1,6 +1,5 @@
 package io.github.acedroidx.frp.tasker
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -20,6 +19,7 @@ import com.joaomgcd.taskerpluginlibrary.input.TaskerInputRoot
 import com.joaomgcd.taskerpluginlibrary.runner.TaskerPluginResult
 import com.joaomgcd.taskerpluginlibrary.runner.TaskerPluginResultError
 import com.joaomgcd.taskerpluginlibrary.runner.TaskerPluginResultSucess
+import io.github.acedroidx.frp.BaseActivity
 import io.github.acedroidx.frp.FrpConfig
 import io.github.acedroidx.frp.FrpType
 import io.github.acedroidx.frp.IntentExtraKey
@@ -57,7 +57,7 @@ class StartFrpHelper(config: TaskerPluginConfig<StartFrpInput>) :
 /**
  * Config Activity - the UI that appears when configuring the Tasker action
  */
-class ActivityConfigStartFrp : Activity(), TaskerPluginConfig<StartFrpInput> {
+class ActivityConfigStartFrp : BaseActivity(), TaskerPluginConfig<StartFrpInput> {
     override val context: Context get() = applicationContext
 
     private val taskerHelper by lazy { StartFrpHelper(this) }
