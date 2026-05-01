@@ -23,6 +23,7 @@ open class BaseActivity : ComponentActivity() {
         val nightMode = when (themeMode) {
             "深色" -> AppCompatDelegate.MODE_NIGHT_YES
             "浅色" -> AppCompatDelegate.MODE_NIGHT_NO
+            "跟随系统", "MIUI风格" -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
             else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
         }
         AppCompatDelegate.setDefaultNightMode(nightMode)

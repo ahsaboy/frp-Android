@@ -195,11 +195,12 @@ class SettingsActivity : BaseActivity() {
         val currentLanguageLabel = languageLabelMap[currentLanguage]
             ?: languageLabelMap["system"].orEmpty()
 
-        val themeOptions = listOf("深色", "浅色", "跟随系统")
+        val themeOptions = listOf("深色", "浅色", "跟随系统", "MIUI风格")
         val themeLabelMap = mapOf(
             "深色" to stringResource(R.string.theme_dark),
             "浅色" to stringResource(R.string.theme_light),
-            "跟随系统" to stringResource(R.string.theme_follow_system)
+            "跟随系统" to stringResource(R.string.theme_follow_system),
+            "MIUI风格" to stringResource(R.string.theme_miuix)
         )
         val currentThemeLabel = themeLabelMap[currentTheme]
             ?: themeLabelMap["跟随系统"].orEmpty()

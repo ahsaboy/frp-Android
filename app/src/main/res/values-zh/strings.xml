@@ -88,5 +88,6 @@
     <string name="theme_dark">深色</string>
     <string name="theme_light">浅色</string>
     <string name="theme_follow_system">跟随系统</string>
+    <string name="theme_miuix">MIUI风格</string>
     <string name="settings_content_desc">打开设置</string>
 </resources>
