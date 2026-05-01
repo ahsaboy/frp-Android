@@ -8,42 +8,9 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.acedroidx.frp.config.ui.ConfigFormScreen
 import io.github.acedroidx.frp.ui.theme.FrpTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
@@ -54,10 +21,10 @@ class ConfigActivity : BaseActivity() {
     private val frpVersion = MutableStateFlow("Loading...")
     private val themeMode = MutableStateFlow("跟随系统")
     private lateinit var configFile: File
+    private lateinit var frpConfigType: FrpType
     private lateinit var autoStartPreferencesKey: String
     private lateinit var preferences: SharedPreferences
 
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -74,6 +41,7 @@ class ConfigActivity : BaseActivity() {
             return
         }
         configFile = frpConfig.getFile(this)
+        frpConfigType = frpConfig.type
         autoStartPreferencesKey = frpConfig.type.getAutoStartPreferencesKey()
         preferences = getSharedPreferences("data", MODE_PRIVATE)
         frpVersion.value = preferences.getString(PreferencesKey.FRP_VERSION, "Loading...") ?: "Loading..."
@@ -84,120 +52,25 @@ class ConfigActivity : BaseActivity() {
         enableEdgeToEdge()
         setContent {
             val currentTheme by themeMode.collectAsStateWithLifecycle("跟随系统")
+            val autoStart by isAutoStart.collectAsStateWithLifecycle(false)
             FrpTheme(themeMode = currentTheme) {
-                val frpVersion by frpVersion.collectAsStateWithLifecycle("Loading...")
-                Scaffold(topBar = {
-                    TopAppBar(
-                        title = {
-                            Text("frp for Android - ${BuildConfig.VERSION_NAME}/$frpVersion")
-                        },
-                        navigationIcon = {
-                            IconButton(onClick = { closeActivity() }) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_arrow_back_24dp),
-                                    contentDescription = "返回"
-                                )
-                            }
-                        }
-                    )
-                }) { contentPadding ->
-                    // Screen content
-                    MainContent(contentPadding)
-                }
+                ConfigFormScreen(
+                    configType = frpConfigType,
+                    initialToml = configEditText.value,
+                    onSave = { newToml ->
+                        configEditText.value = newToml
+                        saveConfig()
+                        closeActivity()
+                    },
+                    onCancel = { closeActivity() },
+                    onDontSave = { closeActivity() },
+                    configFileName = configFile.name.removeSuffix(".toml"),
+                    onRename = { newName -> renameConfig(newName) },
+                    isAutoStart = autoStart,
+                    onAutoStartChange = { setAutoStart(it) },
+                )
             }
         }
-    }
-
-    @Preview(showBackground = true)
-    @Composable
-    fun MainContent(contentPadding: PaddingValues = PaddingValues(0.dp)) {
-        val openDialog = remember { mutableStateOf(false) }
-        val focusRequester = remember { FocusRequester() }
-
-        LaunchedEffect(Unit) {
-            focusRequester.requestFocus()
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(contentPadding)
-                .imePadding()
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp)
-            ) {
-                Button(onClick = { saveConfig();closeActivity() }) {
-                    Text(stringResource(R.string.saveConfigButton))
-                }
-                Button(onClick = { closeActivity() }) {
-                    Text(stringResource(R.string.dontSaveConfigButton))
-                }
-                Button(onClick = { openDialog.value = true }) {
-                    Text(stringResource(R.string.rename))
-                }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-            ) {
-                Text(stringResource(R.string.auto_start_switch))
-                Switch(checked = isAutoStart.collectAsStateWithLifecycle(false).value,
-                    onCheckedChange = { setAutoStart(it) })
-            }
-            TextField(
-                value = configEditText.collectAsStateWithLifecycle("").value,
-                onValueChange = { configEditText.value = it },
-                textStyle = MaterialTheme.typography.bodyMedium.merge(fontFamily = FontFamily.Monospace),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
-                    .focusRequester(focusRequester)
-            )
-        }
-        if (openDialog.value) {
-            RenameDialog(configFile.name.removeSuffix(".toml")) { openDialog.value = false }
-        }
-    }
-
-    @Composable
-    fun RenameDialog(
-        originName: String,
-        onClose: () -> Unit,
-    ) {
-        var text by remember { mutableStateOf(originName) }
-        AlertDialog(title = {
-            Text(stringResource(R.string.rename))
-        }, icon = {
-            Icon(
-                painterResource(id = R.drawable.ic_rename), contentDescription = "Rename Icon"
-            )
-        }, text = {
-            TextField(text, onValueChange = { text = it })
-        }, onDismissRequest = {
-            onClose()
-        }, confirmButton = {
-            TextButton(onClick = {
-                renameConfig("$text.toml")
-                onClose()
-            }) {
-                Text(stringResource(R.string.confirm))
-            }
-        }, dismissButton = {
-            TextButton(onClick = {
-                onClose()
-            }) {
-                Text(stringResource(R.string.dismiss))
-            }
-        })
     }
 
     fun readConfig() {

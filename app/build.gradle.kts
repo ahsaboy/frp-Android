@@ -41,8 +41,8 @@ android {
         minSdk = 23
         targetSdk = 35
         compileSdk = 35
-        versionCode = 22
-        versionName = "1.5.5"
+        versionCode = 23
+        versionName = "1.5.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -129,6 +129,9 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     // Optional - Integration with activities
     implementation("androidx.activity:activity-compose")
+
+    // TOML parsing/serialization
+    implementation("com.akuleshov7:ktoml-core:0.5.2")
 
     // Tasker Plugin Library
     implementation("com.joaomgcd:taskerpluginlibrary:0.4.10")
