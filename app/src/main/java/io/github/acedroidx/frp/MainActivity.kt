@@ -484,12 +484,13 @@ class MainActivity : BaseActivity() {
                     IconButton(
                         onClick = { startConfigActivity(config) },
                         enabled = !isRunning,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.padding(start = 2.dp).size(36.dp),
+                        backgroundColor = MiuixTheme.colorScheme.secondaryVariant,
                     ) {
                         Icon(
                             imageVector = MiuixIcons.Edit,
                             contentDescription = stringResource(R.string.edit_config),
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                     IconButton(
@@ -497,12 +498,13 @@ class MainActivity : BaseActivity() {
                             showDeleteDialog.value = true
                         },
                         enabled = !isRunning,
-                        modifier = Modifier.size(32.dp,28.dp)
+                        modifier = Modifier.padding(start = 6.dp, end = 6.dp).size(36.dp),
+                        backgroundColor = MiuixTheme.colorScheme.secondaryVariant,
                     ) {
                         Icon(
                             imageVector = MiuixIcons.Delete,
                             contentDescription = stringResource(R.string.delete_config),
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
 
