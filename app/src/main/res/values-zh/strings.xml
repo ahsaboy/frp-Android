@@ -15,6 +15,11 @@
     <string name="settings_section_about">关于</string>
     <string name="auto_start_switch">开机自启动</string>
     <string name="auto_start_on_app_launch">打开应用自动启动</string>
+    <string name="status_server">服务器</string>
+    <string name="status_boot_auto_start">开机自启: 开</string>
+    <string name="status_boot_manual">开机自启: 关</string>
+    <string name="status_app_launch_auto_start">应用启动: 开</string>
+    <string name="status_app_launch_manual">应用启动: 关</string>
     <string name="theme_mode">主题模式</string>
     <string name="allow_tasker">允许 Tasker 调用</string>
     <string name="exclude_from_recents">最近任务中排除</string>
