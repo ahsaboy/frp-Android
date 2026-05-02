@@ -16,6 +16,11 @@
     <string name="settings_section_about">About</string>
     <string name="auto_start_switch">Startup at Boot</string>
     <string name="auto_start_on_app_launch">Start on App Launch</string>
+    <string name="status_server">Server</string>
+    <string name="status_boot_auto_start">Boot: ON</string>
+    <string name="status_boot_manual">Boot: OFF</string>
+    <string name="status_app_launch_auto_start">App Launch: ON</string>
+    <string name="status_app_launch_manual">App Launch: OFF</string>
     <string name="theme_mode">Theme Mode</string>
     <string name="allow_tasker">Allow Tasker Access</string>
     <string name="exclude_from_recents">Exclude From Recents</string>

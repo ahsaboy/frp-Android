@@ -42,7 +42,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -57,6 +60,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import io.github.acedroidx.frp.config.TomlParserUtil
 import io.github.acedroidx.frp.ui.theme.AppThemeMode
 import io.github.acedroidx.frp.ui.theme.FrpTheme
 import io.github.acedroidx.frp.ui.theme.readAppThemeMode
@@ -120,6 +124,7 @@ class MainActivity : BaseActivity() {
     private val showImportTypeDialog = mutableStateOf(false)
     private var pendingImportFile: Uri? = null
     private var appliedLanguagePreference: String = "system"
+    private val configRefreshCounter = mutableStateOf(0)
 
     // 权限请求启动器
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -375,6 +380,13 @@ class MainActivity : BaseActivity() {
         val showLog = remember { mutableStateOf(false) }
         val showDeleteDialog = remember { mutableStateOf(false) }
 
+        // 读取配置状态信息
+        val refreshCount = configRefreshCounter.value
+        val statusInfo = remember { mutableStateOf<ConfigStatusInfo?>(null) }
+        LaunchedEffect(config, refreshCount) {
+            statusInfo.value = loadConfigStatusInfo(config)
+        }
+
         // 监听实时配置日志
         val configLogs by if (mBound) {
             mService.configLogs.collectAsStateWithLifecycle(emptyMap())
@@ -418,6 +430,31 @@ class MainActivity : BaseActivity() {
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(config.fileName)
+                        statusInfo.value?.let { info ->
+                            if (info.serverAddr.isNotEmpty()) {
+                                Text(
+                                    "${stringResource(R.string.status_server)}: ${info.serverAddr}:${info.serverPort}",
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
+                            }
+                            val bootText = stringResource(if (info.isBootAutoStart) R.string.status_boot_auto_start else R.string.status_boot_manual)
+                            val appText = stringResource(if (info.isAppLaunchAutoStart) R.string.status_app_launch_auto_start else R.string.status_app_launch_manual)
+                            val defaultColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            val primaryColor = MiuixTheme.colorScheme.primary
+                            Text(
+                                text = buildAnnotatedString {
+                                    withStyle(SpanStyle(color = if (info.isBootAutoStart) primaryColor else defaultColor)) {
+                                        append(bootText)
+                                    }
+                                    append("  ")
+                                    withStyle(SpanStyle(color = if (info.isAppLaunchAutoStart) primaryColor else defaultColor)) {
+                                        append(appText)
+                                    }
+                                },
+                                style = MiuixTheme.textStyles.footnote1,
+                            )
+                        }
                         if (isRunning) {
                             Text(
                                 stringResource(R.string.quick_tile_running),
@@ -589,6 +626,37 @@ class MainActivity : BaseActivity() {
                     }
                 }
             )
+        }
+    }
+
+    private data class ConfigStatusInfo(
+        val serverAddr: String,
+        val serverPort: Long,
+        val isBootAutoStart: Boolean,
+        val isAppLaunchAutoStart: Boolean,
+    )
+
+    private fun loadConfigStatusInfo(config: FrpConfig): ConfigStatusInfo? {
+        return try {
+            val file = config.getFile(this)
+            if (!file.exists()) return null
+            val toml = file.readText()
+            val map = TomlParserUtil.parseToMap(toml)
+            val serverAddr = map["serverAddr"]?.toString() ?: ""
+            val serverPort = (map["serverPort"] as? Number)?.toLong() ?: 7000L
+
+            val bootAutoStartKey = config.type.getAutoStartPreferencesKey()
+            val bootList = preferences.getStringSet(bootAutoStartKey, emptySet())
+            val isBootAutoStart = bootList?.contains(config.fileName) == true
+
+            val appLaunchKey = config.type.getAutoStartOnAppLaunchPreferencesKey()
+            val appLaunchList = preferences.getStringSet(appLaunchKey, emptySet())
+            val isAppLaunchAutoStart = appLaunchList?.contains(config.fileName) == true
+
+            ConfigStatusInfo(serverAddr, serverPort, isBootAutoStart, isAppLaunchAutoStart)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to load config status info: ${e.message}")
+            null
         }
     }
 
@@ -880,6 +948,7 @@ class MainActivity : BaseActivity() {
     }
 
     private fun updateConfigList() {
+        configRefreshCounter.value++
         frpcConfigList.value = (FrpType.FRPC.getDir(this).list()?.toList() ?: listOf()).map {
             FrpConfig(FrpType.FRPC, it)
         }
