@@ -22,8 +22,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -51,7 +53,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
@@ -573,18 +575,23 @@ class SettingsActivity : BaseActivity() {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 24.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         TextButton(
                             text = stringResource(R.string.dismiss),
-                            onClick = onDismiss
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f),
                         )
-                        Button(onClick = {
-                            launchExportDocument(fileName)
-                            onDismiss()
-                        }) {
-                            Text(stringResource(R.string.confirm))
-                        }
+                        Spacer(Modifier.width(20.dp))
+                        TextButton(
+                            text = stringResource(R.string.confirm),
+                            onClick = {
+                                launchExportDocument(fileName)
+                                onDismiss()
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                        )
                     }
                 }
             }
@@ -610,12 +617,14 @@ class SettingsActivity : BaseActivity() {
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         TextButton(
                             text = stringResource(R.string.dismiss),
                             onClick = onDismiss,
+                            modifier = Modifier.weight(1f),
                         )
+                        Spacer(Modifier.width(20.dp))
                         TextButton(
                             text = stringResource(R.string.confirm),
                             onClick = {
@@ -623,6 +632,8 @@ class SettingsActivity : BaseActivity() {
                                 onConfirm(sanitizeLogMaxLines(parsed ?: DEFAULT_LOG_MAX_LINES))
                                 onDismiss()
                             },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
                         )
                     }
                 }

@@ -25,9 +25,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -78,6 +80,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipInputStream
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
@@ -609,19 +612,23 @@ class MainActivity : BaseActivity() {
                 content = {
                     Text(stringResource(R.string.confirm_delete_message, config.fileName))
                     Row(
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         TextButton(
                             text = stringResource(R.string.dismiss),
-                            onClick = { showDeleteDialog.value = false }
+                            onClick = { showDeleteDialog.value = false },
+                            modifier = Modifier.weight(1f),
                         )
+                        Spacer(Modifier.width(20.dp))
                         TextButton(
                             text = stringResource(R.string.deleteConfigButton),
                             onClick = {
                                 deleteConfig(config)
                                 showDeleteDialog.value = false
-                            }
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
                         )
                     }
                 }
