@@ -2,16 +2,30 @@ package io.github.acedroidx.frp.tasker
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
-import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.CheckBox
-import android.widget.RadioGroup
-import android.widget.Spinner
-import android.widget.TextView
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.joaomgcd.taskerpluginlibrary.action.TaskerPluginRunnerActionNoOutput
 import com.joaomgcd.taskerpluginlibrary.config.TaskerPluginConfig
 import com.joaomgcd.taskerpluginlibrary.config.TaskerPluginConfigHelperNoOutput
@@ -29,10 +43,27 @@ import io.github.acedroidx.frp.PreferencesKey
 import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.ShellService
 import io.github.acedroidx.frp.ShellServiceAction
+import io.github.acedroidx.frp.ui.theme.AppThemeMode
+import io.github.acedroidx.frp.ui.theme.FrpTheme
+import io.github.acedroidx.frp.ui.theme.readAppThemeMode
+import io.github.acedroidx.frp.ui.theme.readUseMonet
+import kotlinx.coroutines.flow.MutableStateFlow
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.SpinnerEntry
+import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 
 /**
  * Input class for Tasker - defines which FRP configuration to stop
- * stopAll=true means stop all running configs, otherwise stop specific config
  */
 @TaskerInputRoot
 class StopFrpInput @JvmOverloads constructor(
@@ -69,20 +100,15 @@ class ActivityConfigStopFrp : BaseActivity(), TaskerPluginConfig<StopFrpInput> {
 
     private val taskerHelper by lazy { StopFrpHelper(this) }
 
-    private lateinit var checkboxStopAll: CheckBox
-    private lateinit var radioGroupType: RadioGroup
-    private lateinit var spinnerConfig: Spinner
-    private lateinit var textViewNoConfig: TextView
-    private lateinit var buttonSave: Button
-    private lateinit var buttonCancel: Button
-
     private var stopAll: Boolean = false
     private var selectedFrpType: FrpType = FrpType.FRPC
     private var configFiles: List<String> = emptyList()
     private var selectedConfigFile: String? = null
 
+    private val themeMode = MutableStateFlow(AppThemeMode.SYSTEM)
+    private val useMonet = MutableStateFlow(false)
+
     override fun assignFromInput(input: TaskerInput<StopFrpInput>) {
-        // Load previously saved configuration
         stopAll = input.regular.stopAll
 
         val frpType = input.regular.frpType
@@ -113,106 +139,144 @@ class ActivityConfigStopFrp : BaseActivity(), TaskerPluginConfig<StopFrpInput> {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_tasker_config_stop)
 
-        // Initialize views
-        checkboxStopAll = findViewById(R.id.checkboxStopAll)
-        radioGroupType = findViewById(R.id.radioGroupFrpType)
-        spinnerConfig = findViewById(R.id.spinnerConfig)
-        textViewNoConfig = findViewById(R.id.textViewNoConfig)
-        buttonSave = findViewById(R.id.buttonSave)
-        buttonCancel = findViewById(R.id.buttonCancel)
+        val preferences = getSharedPreferences("data", MODE_PRIVATE)
+        themeMode.value = preferences.readAppThemeMode()
+        useMonet.value = preferences.readUseMonet()
 
-        // Load input from Tasker if editing existing action
         taskerHelper.onCreate()
 
-        // Set initial checkbox state
-        checkboxStopAll.isChecked = stopAll
-
-        // Set up checkbox listener
-        checkboxStopAll.setOnCheckedChangeListener { _, isChecked ->
-            stopAll = isChecked
-            if (isChecked) {
-                // Hide specific config selection when "Stop All" is checked
-                radioGroupType.visibility = View.GONE
-                spinnerConfig.visibility = View.GONE
-                textViewNoConfig.visibility = View.GONE
-                buttonSave.isEnabled = true
-            } else {
-                // Show specific config selection
-                radioGroupType.visibility = View.VISIBLE
-                loadConfigFiles()
+        applyEdgeToEdge()
+        setContent {
+            val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
+            CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
+                val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
+                val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
+                FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
+                    TaskerStopFrpContent()
+                }
             }
-        }
-
-        // Set up radio group listener
-        radioGroupType.setOnCheckedChangeListener { _, checkedId ->
-            selectedFrpType = if (checkedId == R.id.radioFrps) {
-                FrpType.FRPS
-            } else {
-                FrpType.FRPC
-            }
-            loadConfigFiles()
-        }
-
-        // Set initial selection based on loaded data
-        if (selectedFrpType == FrpType.FRPS) {
-            radioGroupType.check(R.id.radioFrps)
-        } else {
-            radioGroupType.check(R.id.radioFrpc)
-        }
-
-        // Load config files initially if not stopping all
-        if (!stopAll) {
-            loadConfigFiles()
-        } else {
-            radioGroupType.visibility = View.GONE
-            spinnerConfig.visibility = View.GONE
-            textViewNoConfig.visibility = View.GONE
-        }
-
-        // Set up buttons
-        buttonSave.setOnClickListener {
-            if (stopAll || selectedConfigFile != null) {
-                taskerHelper.finishForTasker()
-            }
-        }
-
-        buttonCancel.setOnClickListener {
-            finish()
         }
     }
 
-    private fun loadConfigFiles() {
-        val dir = selectedFrpType.getDir(this)
-        configFiles = dir.list()?.toList()?.sorted() ?: emptyList()
+    @Preview(showBackground = true)
+    @Composable
+    private fun TaskerStopFrpContent() {
+        var isStopAll by remember { mutableStateOf(stopAll) }
+        var frpTypeIndex by remember { mutableStateOf(if (selectedFrpType == FrpType.FRPS) 1 else 0) }
+        var configFileIndex by remember { mutableStateOf(-1) }
+        var loadedConfigFiles by remember { mutableStateOf(emptyList<String>()) }
 
-        if (configFiles.isEmpty()) {
-            spinnerConfig.visibility = View.GONE
-            textViewNoConfig.visibility = View.VISIBLE
-            buttonSave.isEnabled = false
-        } else {
-            spinnerConfig.visibility = View.VISIBLE
-            textViewNoConfig.visibility = View.GONE
-            buttonSave.isEnabled = true
+        LaunchedEffect(frpTypeIndex) {
+            selectedFrpType = if (frpTypeIndex == 1) FrpType.FRPS else FrpType.FRPC
+            val dir = selectedFrpType.getDir(this@ActivityConfigStopFrp)
+            loadedConfigFiles = dir.list()?.toList()?.sorted() ?: emptyList()
 
-            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, configFiles)
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            spinnerConfig.adapter = adapter
-
-            // Set selected item if we have one
-            if (selectedConfigFile != null && configFiles.contains(selectedConfigFile)) {
-                val index = configFiles.indexOf(selectedConfigFile)
-                spinnerConfig.setSelection(index)
+            configFileIndex = if (selectedConfigFile != null && loadedConfigFiles.contains(selectedConfigFile)) {
+                loadedConfigFiles.indexOf(selectedConfigFile)
+            } else {
+                -1
             }
 
-            spinnerConfig.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    selectedConfigFile = configFiles[position]
+            if (configFileIndex >= 0) {
+                selectedConfigFile = loadedConfigFiles[configFileIndex]
+            }
+        }
+
+        Scaffold(
+            topBar = {
+                SmallTopAppBar(
+                    title = stringResource(R.string.tasker_stop_config_title),
+                    navigationIcon = {
+                        IconButton(onClick = { finish() }) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_arrow_back_24dp),
+                                contentDescription = stringResource(R.string.back)
+                            )
+                        }
+                    }
+                )
+            },
+            bottomBar = {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TextButton(
+                        text = stringResource(R.string.dismiss),
+                        onClick = { finish() },
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(
+                        onClick = {
+                            if (isStopAll || selectedConfigFile != null) {
+                                taskerHelper.finishForTasker()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = isStopAll || loadedConfigFiles.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColorsPrimary(),
+                    ) {
+                        Text(stringResource(R.string.saveConfigButton))
+                    }
+                }
+            },
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    BasicComponent(
+                        title = stringResource(R.string.tasker_stop_all),
+                        summary = null,
+                        onClick = {
+                            isStopAll = !isStopAll
+                            stopAll = isStopAll
+                        },
+                        endActions = {
+                            Switch(
+                                checked = isStopAll,
+                                onCheckedChange = {
+                                    isStopAll = it
+                                    stopAll = it
+                                },
+                            )
+                        },
+                    )
                 }
 
-                override fun onNothingSelected(parent: AdapterView<*>?) {
-                    selectedConfigFile = null
+                if (!isStopAll) {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        OverlaySpinnerPreference(
+                            title = stringResource(R.string.tasker_select_type),
+                            items = listOf(
+                                SpinnerEntry(title = "frpc"),
+                                SpinnerEntry(title = "frps"),
+                            ),
+                            selectedIndex = frpTypeIndex,
+                            onSelectedIndexChange = { frpTypeIndex = it },
+                        )
+                    }
+
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        OverlaySpinnerPreference(
+                            title = stringResource(R.string.tasker_select_config),
+                            items = if (loadedConfigFiles.isNotEmpty()) {
+                                loadedConfigFiles.map { SpinnerEntry(title = it) }
+                            } else {
+                                listOf(SpinnerEntry(title = stringResource(R.string.tasker_no_config)))
+                            },
+                            selectedIndex = configFileIndex.coerceAtLeast(0),
+                            onSelectedIndexChange = { idx ->
+                                configFileIndex = idx
+                                selectedConfigFile = loadedConfigFiles.getOrNull(idx)
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -224,7 +288,6 @@ class ActivityConfigStopFrp : BaseActivity(), TaskerPluginConfig<StopFrpInput> {
  */
 class StopFrpRunner : TaskerPluginRunnerActionNoOutput<StopFrpInput>() {
     override fun run(context: Context, input: TaskerInput<StopFrpInput>): TaskerPluginResult<Unit> {
-        // Check if Tasker is allowed
         val preferences = context.getSharedPreferences("data", Context.MODE_PRIVATE)
         val allowTasker = preferences.getBoolean(PreferencesKey.ALLOW_TASKER, true)
 
@@ -234,7 +297,6 @@ class StopFrpRunner : TaskerPluginRunnerActionNoOutput<StopFrpInput>() {
             )
         }
 
-        // If stopAll is true, stop all running configs
         if (input.regular.stopAll) {
             val intent = Intent(context, ShellService::class.java).apply {
                 action = ShellServiceAction.STOP_ALL
@@ -248,7 +310,6 @@ class StopFrpRunner : TaskerPluginRunnerActionNoOutput<StopFrpInput>() {
             }
         }
 
-        // Otherwise, stop specific config
         val frpTypeStr = input.regular.frpType
         val configFileName = input.regular.configFileName
 
@@ -258,7 +319,6 @@ class StopFrpRunner : TaskerPluginRunnerActionNoOutput<StopFrpInput>() {
             )
         }
 
-        // Parse FRP type
         val frpType = when (frpTypeStr.lowercase()) {
             "frpc" -> FrpType.FRPC
             "frps" -> FrpType.FRPS
@@ -267,10 +327,8 @@ class StopFrpRunner : TaskerPluginRunnerActionNoOutput<StopFrpInput>() {
             )
         }
 
-        // Create FrpConfig
         val config = FrpConfig(frpType, configFileName)
 
-        // Check if config file exists
         val configFile = config.getFile(context)
         if (!configFile.exists()) {
             return TaskerPluginResultError(
@@ -278,7 +336,6 @@ class StopFrpRunner : TaskerPluginRunnerActionNoOutput<StopFrpInput>() {
             )
         }
 
-        // Stop the FRP service
         val intent = Intent(context, ShellService::class.java).apply {
             action = ShellServiceAction.STOP
             putExtra(IntentExtraKey.FrpConfig, arrayListOf(config))
