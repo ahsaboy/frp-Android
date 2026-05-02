@@ -40,8 +40,8 @@ android {
         minSdk = 23
         targetSdk = 37
         compileSdk = 37
-        versionCode = 25
-        versionName = "1.5.8"
+        versionCode = 26
+        versionName = "1.5.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -97,7 +97,7 @@ android {
     namespace = "io.github.acedroidx.frp"
 }
 
-val appVersionName = "1.5.7"
+val appVersionName = "1.5.9"
 
 androidComponents {
     onVariants { variant ->
