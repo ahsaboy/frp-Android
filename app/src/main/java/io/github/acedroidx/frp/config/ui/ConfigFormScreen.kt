@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -331,15 +332,19 @@ private fun RenameDialogInForm(
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     TextButton(
                         text = stringResource(R.string.dismiss),
                         onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
                     )
+                    Spacer(Modifier.width(20.dp))
                     TextButton(
                         text = stringResource(R.string.confirm),
                         onClick = { onConfirm("$text.toml") },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
                     )
                 }
             }
