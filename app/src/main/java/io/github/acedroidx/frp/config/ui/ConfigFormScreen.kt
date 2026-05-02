@@ -57,6 +57,8 @@ fun ConfigFormScreen(
     onRename: (String) -> Unit,
     isAutoStart: Boolean,
     onAutoStartChange: (Boolean) -> Unit,
+    isAutoStartOnAppLaunch: Boolean,
+    onAutoStartOnAppLaunchChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel = remember { ConfigFormViewModel.create(configType, initialToml) }
@@ -130,6 +132,8 @@ fun ConfigFormScreen(
                     configFileName = configFileName,
                     isAutoStart = isAutoStart,
                     onAutoStartChange = onAutoStartChange,
+                    isAutoStartOnAppLaunch = isAutoStartOnAppLaunch,
+                    onAutoStartOnAppLaunchChange = onAutoStartOnAppLaunchChange,
                     onRename = onRename,
                 )
             } else {
@@ -146,6 +150,8 @@ private fun FormModeContent(
     configFileName: String,
     isAutoStart: Boolean,
     onAutoStartChange: (Boolean) -> Unit,
+    isAutoStartOnAppLaunch: Boolean,
+    onAutoStartOnAppLaunchChange: (Boolean) -> Unit,
     onRename: (String) -> Unit,
 ) {
     val schema = viewModel.configSchema
@@ -195,6 +201,8 @@ private fun FormModeContent(
                                 configFileName = configFileName,
                                 isAutoStart = isAutoStart,
                                 onAutoStartChange = onAutoStartChange,
+                                isAutoStartOnAppLaunch = isAutoStartOnAppLaunch,
+                                onAutoStartOnAppLaunchChange = onAutoStartOnAppLaunchChange,
                                 onRename = onRename,
                             )
                         }
@@ -237,6 +245,8 @@ private fun ManagementSectionCard(
     configFileName: String,
     isAutoStart: Boolean,
     onAutoStartChange: (Boolean) -> Unit,
+    isAutoStartOnAppLaunch: Boolean,
+    onAutoStartOnAppLaunchChange: (Boolean) -> Unit,
     onRename: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -274,6 +284,17 @@ private fun ManagementSectionCard(
             ) {
                 Text(stringResource(R.string.auto_start_switch), style = MiuixTheme.textStyles.body1)
                 Switch(checked = isAutoStart, onCheckedChange = onAutoStartChange)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(stringResource(R.string.auto_start_on_app_launch), style = MiuixTheme.textStyles.body1)
+                Switch(checked = isAutoStartOnAppLaunch, onCheckedChange = onAutoStartOnAppLaunchChange)
             }
         }
     }

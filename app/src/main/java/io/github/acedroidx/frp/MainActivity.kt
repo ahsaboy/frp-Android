@@ -192,6 +192,9 @@ class MainActivity : BaseActivity() {
                     runningConfigList.value = processThreads.keys.toList()
                 }
             }
+
+            // 打开应用自动启动标记的配置
+            autoStartOnAppLaunch()
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
@@ -813,6 +816,25 @@ class MainActivity : BaseActivity() {
         startService(intent)
     }
 
+    private fun autoStartOnAppLaunch() {
+        val frpcSet = preferences.getStringSet(PreferencesKey.AUTO_START_ON_APP_LAUNCH_FRPC_LIST, emptySet())
+        val frpsSet = preferences.getStringSet(PreferencesKey.AUTO_START_ON_APP_LAUNCH_FRPS_LIST, emptySet())
+        val configs = mutableListOf<FrpConfig>()
+        frpcSet?.forEach { configs.add(FrpConfig(FrpType.FRPC, it)) }
+        frpsSet?.forEach { configs.add(FrpConfig(FrpType.FRPS, it)) }
+        if (configs.isEmpty()) return
+
+        // 过滤掉已经运行的配置
+        val running = runningConfigList.value
+        val toStart = configs.filter { !running.contains(it) }
+        if (toStart.isEmpty()) return
+
+        val intent = Intent(this, ShellService::class.java)
+        intent.action = ShellServiceAction.START
+        intent.putExtra(IntentExtraKey.FrpConfig, ArrayList(toStart))
+        startShellService(intent)
+    }
+
     /**
      * 检查并请求必要的运行时权限
      */
@@ -883,6 +905,22 @@ class MainActivity : BaseActivity() {
             }
         preferences.edit {
             putStringSet(PreferencesKey.AUTO_START_FRPS_LIST, frpsAutoStartList?.toSet())
+        }
+
+        // 清理打开应用自动启动列表中已删除的配置
+        val frpcAutoStartOnAppLaunchList =
+            preferences.getStringSet(PreferencesKey.AUTO_START_ON_APP_LAUNCH_FRPC_LIST, emptySet())?.filter {
+                frpcConfigList.value.contains(FrpConfig(FrpType.FRPC, it))
+            }
+        preferences.edit {
+            putStringSet(PreferencesKey.AUTO_START_ON_APP_LAUNCH_FRPC_LIST, frpcAutoStartOnAppLaunchList?.toSet())
+        }
+        val frpsAutoStartOnAppLaunchList =
+            preferences.getStringSet(PreferencesKey.AUTO_START_ON_APP_LAUNCH_FRPS_LIST, emptySet())?.filter {
+                frpsConfigList.value.contains(FrpConfig(FrpType.FRPS, it))
+            }
+        preferences.edit {
+            putStringSet(PreferencesKey.AUTO_START_ON_APP_LAUNCH_FRPS_LIST, frpsAutoStartOnAppLaunchList?.toSet())
         }
     }
 

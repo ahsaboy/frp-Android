@@ -22,12 +22,14 @@ import java.io.File
 class ConfigActivity : BaseActivity() {
     private val configEditText = MutableStateFlow("")
     private val isAutoStart = MutableStateFlow(false)
+    private val isAutoStartOnAppLaunch = MutableStateFlow(false)
     private val frpVersion = MutableStateFlow("Loading...")
     private val themeMode = MutableStateFlow(AppThemeMode.SYSTEM)
     private val useMonet = MutableStateFlow(false)
     private lateinit var configFile: File
     private lateinit var frpConfigType: FrpType
     private lateinit var autoStartPreferencesKey: String
+    private lateinit var autoStartOnAppLaunchPreferencesKey: String
     private lateinit var preferences: SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,12 +50,14 @@ class ConfigActivity : BaseActivity() {
         configFile = frpConfig.getFile(this)
         frpConfigType = frpConfig.type
         autoStartPreferencesKey = frpConfig.type.getAutoStartPreferencesKey()
+        autoStartOnAppLaunchPreferencesKey = frpConfig.type.getAutoStartOnAppLaunchPreferencesKey()
         preferences = getSharedPreferences("data", MODE_PRIVATE)
         frpVersion.value = preferences.getString(PreferencesKey.FRP_VERSION, "Loading...") ?: "Loading..."
         themeMode.value = preferences.readAppThemeMode()
         useMonet.value = preferences.readUseMonet()
         readConfig()
         readIsAutoStart()
+        readIsAutoStartOnAppLaunch()
 
         applyEdgeToEdge()
         setContent {
@@ -62,6 +66,7 @@ class ConfigActivity : BaseActivity() {
             val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
             val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
             val autoStart by isAutoStart.collectAsStateWithLifecycle(false)
+            val autoStartOnAppLaunch by isAutoStartOnAppLaunch.collectAsStateWithLifecycle(false)
             FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
                 ConfigFormScreen(
                     configType = frpConfigType,
@@ -77,6 +82,8 @@ class ConfigActivity : BaseActivity() {
                     onRename = { newName -> renameConfig(newName) },
                     isAutoStart = autoStart,
                     onAutoStartChange = { setAutoStart(it) },
+                    isAutoStartOnAppLaunch = autoStartOnAppLaunch,
+                    onAutoStartOnAppLaunchChange = { setAutoStartOnAppLaunch(it) },
                 )
             }
             }
@@ -107,10 +114,13 @@ class ConfigActivity : BaseActivity() {
     fun renameConfig(newName: String) {
         val originAutoStart = isAutoStart.value
         setAutoStart(false)
+        val originAutoStartOnAppLaunch = isAutoStartOnAppLaunch.value
+        setAutoStartOnAppLaunch(false)
         val newFile = File(configFile.parent, newName)
         configFile.renameTo(newFile)
         configFile = newFile
         setAutoStart(originAutoStart)
+        setAutoStartOnAppLaunch(originAutoStartOnAppLaunch)
     }
 
     fun readIsAutoStart() {
@@ -130,6 +140,25 @@ class ConfigActivity : BaseActivity() {
         editor.putStringSet(autoStartPreferencesKey, set)
         editor.apply()
         isAutoStart.value = value
+    }
+
+    fun readIsAutoStartOnAppLaunch() {
+        isAutoStartOnAppLaunch.value =
+            preferences.getStringSet(autoStartOnAppLaunchPreferencesKey, emptySet())?.contains(configFile.name)
+                ?: false
+    }
+
+    fun setAutoStartOnAppLaunch(value: Boolean) {
+        val editor = preferences.edit()
+        val set = preferences.getStringSet(autoStartOnAppLaunchPreferencesKey, emptySet())?.toMutableSet()
+        if (value) {
+            set?.add(configFile.name)
+        } else {
+            set?.remove(configFile.name)
+        }
+        editor.putStringSet(autoStartOnAppLaunchPreferencesKey, set)
+        editor.apply()
+        isAutoStartOnAppLaunch.value = value
     }
 
     fun closeActivity() {

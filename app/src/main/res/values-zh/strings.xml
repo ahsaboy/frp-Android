@@ -14,6 +14,7 @@
     <string name="settings_section_data">数据</string>
     <string name="settings_section_about">关于</string>
     <string name="auto_start_switch">开机自启动</string>
+    <string name="auto_start_on_app_launch">打开应用自动启动</string>
     <string name="theme_mode">主题模式</string>
     <string name="allow_tasker">允许 Tasker 调用</string>
     <string name="exclude_from_recents">最近任务中排除</string>
