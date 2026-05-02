@@ -17,4 +17,6 @@ object PreferencesKey {
     const val EXCLUDE_FROM_RECENTS = "exclude_from_recents"
     const val QUICK_TILE_CONFIG_TYPE = "quick_tile_config_type"
     const val QUICK_TILE_CONFIG_NAME = "quick_tile_config_name"
+    const val AUTO_START_ON_APP_LAUNCH_FRPC_LIST = "auto_start_on_app_launch_frpc_list"
+    const val AUTO_START_ON_APP_LAUNCH_FRPS_LIST = "auto_start_on_app_launch_frps_list"
 }

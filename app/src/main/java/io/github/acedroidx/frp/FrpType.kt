@@ -24,6 +24,13 @@ enum class FrpType(val typeName: String) {
         }
     }
 
+    fun getAutoStartOnAppLaunchPreferencesKey(): String {
+        return when (this) {
+            FRPC -> PreferencesKey.AUTO_START_ON_APP_LAUNCH_FRPC_LIST
+            FRPS -> PreferencesKey.AUTO_START_ON_APP_LAUNCH_FRPS_LIST
+        }
+    }
+
     fun getConfigAssetsName(): String {
         return when (this) {
             FRPC -> BuildConfig.FrpcConfigFileName
