@@ -133,4 +133,6 @@
     <string name="field_value_label">Value</string>
     <string name="expand">Expand</string>
     <string name="collapse">Collapse</string>
+    <string name="about_title">About</string>
+    <string name="app_version">App Version</string>
 </resources>
