@@ -33,6 +33,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Text
 
 class AboutActivity : BaseActivity() {
     private val frpVersion = MutableStateFlow("Loading...")
@@ -58,7 +59,7 @@ class AboutActivity : BaseActivity() {
                 val frpVersion by frpVersion.collectAsStateWithLifecycle("Loading...")
                 Scaffold(topBar = {
                     SmallTopAppBar(
-                        title = "${stringResource(R.string.frp_for_android)} - ${BuildConfig.VERSION_NAME}/$frpVersion",
+                        title = stringResource(R.string.about_title),
                         navigationIcon = {
                             IconButton(onClick = { finish() }) {
                                 Icon(
@@ -75,7 +76,7 @@ class AboutActivity : BaseActivity() {
                             .padding(contentPadding)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        MainContent()
+                        MainContent(frpVersion = frpVersion)
                     }
                 }
             }
@@ -85,13 +86,18 @@ class AboutActivity : BaseActivity() {
 
     @Preview(showBackground = true)
     @Composable
-    fun MainContent() {
+    fun MainContent(frpVersion: String = "Loading...") {
         val uriHandler = LocalUriHandler.current
         Column(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Card(modifier = Modifier.fillMaxWidth()) {
+                BasicComponent(
+                    title = stringResource(R.string.app_version),
+                    summary = "${BuildConfig.VERSION_NAME} (${frpVersion})",
+                    onClick = { /* 什么都不做 */ }
+                )
                 BasicComponent(
                     title = stringResource(R.string.about_repository_fork),
                     summary = "https://github.com/ahsaboy/frp-Android",

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="frp_for_android" translatable="false">frp for Android</string>
     <string name="settings_title">设置</string>
     <string name="back">返回</string>
     <string name="language_title">语言</string>
@@ -132,4 +133,6 @@
     <string name="field_value_label">值</string>
     <string name="expand">展开</string>
     <string name="collapse">收起</string>
+    <string name="about_title">关于</string>
+    <string name="app_version">应用版本</string>
 </resources>

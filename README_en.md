@@ -1,12 +1,21 @@
 # frp-Android
+
+[![GitHub stars](https://img.shields.io/github/stars/ahsaboy/frp-Android?style=flat-square&logo=github&color=yellow)](https://github.com/ahsaboy/frp-Android/stargazers)
+[![GitHub release](https://img.shields.io/github/v/release/ahsaboy/frp-Android?style=flat-square&logo=github)](https://github.com/AceDroidX/frp-Android/releases)
+[![Android](https://img.shields.io/badge/Android-6.0%2B-green?style=flat-square&logo=android)](https://www.android.com)
+[![frp](https://img.shields.io/badge/frp-0.67.0-blue?style=flat-square)](https://github.com/fatedier/frp)
+
+
+
 A frp client for Android  
 一个Android的frpc客户端
 
 [简体中文](README.md) | English
 
-<div style="display:inline-block">
-<img src="./image/image1_en.png" alt="image1_en.png" width="200">
-<img src="./image/image2_en.png" alt="image2_en.png" width="200">
+<div style="display:flex;flex-wrap:wrap;gap:10px;">
+<img src="./image/image1.jpg" alt="image1" width="200">
+<img src="./image/image2.jpg" alt="image2" width="200">
+<img src="./image/image3.jpg" alt="image3" width="200">
 </div>
 
 ## Compilation Methods

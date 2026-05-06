@@ -271,7 +271,7 @@ class MainActivity : BaseActivity() {
                 Scaffold(
                     topBar = {
                         SmallTopAppBar(
-                            title = "${stringResource(R.string.frp_for_android)} - ${BuildConfig.VERSION_NAME}/$frpVersion",
+                            title = stringResource(R.string.frp_for_android),
                             actions = {
                                 IconButton(onClick = {
                                     startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
