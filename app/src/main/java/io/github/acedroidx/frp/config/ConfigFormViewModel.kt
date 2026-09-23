@@ -40,7 +40,6 @@ class ConfigFormViewModel(
 
     init {
         formData.loadFromToml(initialToml)
-        applyDefaults()
         _textContent.value = initialToml
         _expandedSections.value = configSchema.sections.map { it.id }.toSet()
     }
@@ -61,7 +60,6 @@ class ConfigFormViewModel(
     fun switchToFormMode() {
         try {
             formData.loadFromToml(_textContent.value)
-            applyDefaults()
             _textModeError.value = false
             _isFormMode.value = true
         } catch (_: Exception) {
@@ -108,7 +106,9 @@ class ConfigFormViewModel(
         val proxyType = configSchema.proxyTypes.find { it.type == type } ?: return
         val newProxy = mutableMapOf<String, Any?>("type" to type)
         for (field in proxyType.baseFields + proxyType.typeSpecificFields) {
-            if (field.defaultValue != null && field.key != "type") {
+            if (field.defaultValue != null && field.key != "type" &&
+                (field.visibleWhen?.invoke(newProxy) ?: true)
+            ) {
                 SchemaHelpers.setValueByPath(newProxy, field.key, field.defaultValue)
             }
         }
@@ -121,7 +121,9 @@ class ConfigFormViewModel(
         val visitorType = configSchema.visitorTypes.find { it.type == type } ?: return
         val newVisitor = mutableMapOf<String, Any?>("type" to type)
         for (field in visitorType.baseFields + visitorType.typeSpecificFields) {
-            if (field.defaultValue != null && field.key != "type") {
+            if (field.defaultValue != null && field.key != "type" &&
+                (field.visibleWhen?.invoke(newVisitor) ?: true)
+            ) {
                 SchemaHelpers.setValueByPath(newVisitor, field.key, field.defaultValue)
             }
         }
@@ -172,16 +174,6 @@ class ConfigFormViewModel(
 
     fun getPluginTypeSchema(pluginType: String): PluginTypeSchema? {
         return configSchema.pluginTypes.find { it.type == pluginType }
-    }
-
-    private fun applyDefaults() {
-        for (section in configSchema.sections) {
-            for (field in section.fields) {
-                if (field.defaultValue != null && formData.getValue(field.key) == null) {
-                    formData.setValue(field.key, field.defaultValue)
-                }
-            }
-        }
     }
 
     companion object {

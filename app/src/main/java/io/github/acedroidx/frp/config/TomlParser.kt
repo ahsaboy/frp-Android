@@ -147,24 +147,45 @@ object TomlParserUtil {
     }
 
     private fun writeKeyValue(sb: StringBuilder, key: String, value: Any?) {
-        if (value == null) return
         when (value) {
-            is String -> sb.appendLine("$key = \"${escapeString(value)}\"")
+            null -> return
+            //空白字符串视为“未设置”，不写入
+            is String -> if (value.isNotBlank()) {
+                sb.appendLine("$key = \"${escapeString(value)}\"")
+            }
             is Boolean -> sb.appendLine("$key = $value")
             is Number -> sb.appendLine("$key = $value")
             is List<*> -> {
-                val items = value.joinToString(", ") { item ->
-                    if (item is Map<*, *>) writeInlineTable(item)
-                    else writeScalar(item)
+                //过滤 null / 空白标量 / 空内联表；全空的列表不写入
+                val items = value
+                    .filter { item -> if (item is Map<*, *>) hasContent(item) else isSerializableScalar(item) }
+                    .map { item -> if (item is Map<*, *>) writeInlineTable(item) else writeScalar(item) }
+                if (items.isNotEmpty()) {
+                    sb.appendLine("$key = [${items.joinToString(", ")}]")
                 }
-                sb.appendLine("$key = [$items]")
             }
             is Map<*, *> -> {}
         }
     }
 
+    /** 标量是否应写入 TOML：null 与空白字符串表示“未设置”。 */
+    private fun isSerializableScalar(value: Any?): Boolean = when (value) {
+        null -> false
+        is String -> value.isNotBlank()
+        else -> true
+    }
+
+    /** 值（含嵌套集合）是否包含可写入的内容；空表/全空集合不输出。 */
+    private fun hasContent(value: Any?): Boolean = when (value) {
+        null -> false
+        is String -> value.isNotBlank()
+        is Map<*, *> -> value.values.any { hasContent(it) }
+        is List<*> -> value.any { hasContent(it) }
+        else -> true
+    }
+
     private fun writeTable(sb: StringBuilder, key: String, table: Map<String, Any?>) {
-        if (table.isEmpty()) return
+        if (!hasContent(table)) return
         sb.appendLine()
         sb.appendLine("[$key]")
         writeTableContent(sb, key, table)
@@ -198,6 +219,8 @@ object TomlParserUtil {
         }
 
         for ((key, nested) in nestedTables) {
+            //空的子表不输出表头
+            if (!hasContent(nested)) continue
             val fullPath = "$parentPath.$key"
             sb.appendLine()
             sb.appendLine("[$fullPath]")
@@ -210,7 +233,10 @@ object TomlParserUtil {
     }
 
     private fun writeArrayOfTables(sb: StringBuilder, key: String, array: List<Map<String, Any?>>) {
-        for (item in array) {
+        //没有任何可写入内容的条目（如清空后的表单项）直接跳过
+        val items = array.filter { hasContent(it) }
+        if (items.isEmpty()) return
+        for (item in items) {
             sb.appendLine()
             sb.appendLine("[[$key]]")
             writeTableContent(sb, key, item)
@@ -227,8 +253,10 @@ object TomlParserUtil {
     }
 
     private fun writeInlineTable(table: Map<*, *>): String {
-        return table.entries.joinToString(", ", prefix = "{ ", postfix = " }") { (key, value) ->
-            "${key.toString()} = ${if (value is Map<*, *>) writeInlineTable(value) else writeScalar(value)}"
+        val entries = table.entries.filter { hasContent(it.value) }
+        if (entries.isEmpty()) return "{ }"
+        return entries.joinToString(", ", prefix = "{ ", postfix = " }") { (key, value) ->
+            "${key} = ${if (value is Map<*, *>) writeInlineTable(value) else writeScalar(value)}"
         }
     }
 

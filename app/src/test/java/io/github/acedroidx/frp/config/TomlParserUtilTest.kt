@@ -740,4 +740,76 @@ class TomlParserUtilTest {
         assertEquals("user-manager", plugin["name"])
         assertEquals(listOf("Login"), plugin["ops"])
     }
+
+    // ==================== 6. Unset semantics: empty values are omitted ====================
+
+    @Test
+    fun mapToToml_blankAndNullValues_areOmitted() {
+        val data = mapOf<String, Any?>(
+            "user" to "",
+            "clientID" to "   ",
+            "missing" to null,
+            "kept" to "value",
+        )
+        val toml = TomlParserUtil.mapToToml(data)
+        assertFalse(toml.contains("user ="))
+        assertFalse(toml.contains("clientID ="))
+        assertFalse(toml.contains("missing ="))
+        assertTrue(toml.contains("kept = \"value\""))
+    }
+
+    @Test
+    fun mapToToml_emptyList_isOmitted() {
+        val toml = TomlParserUtil.mapToToml(mapOf("start" to emptyList<String>()))
+        assertFalse(toml.contains("start"))
+    }
+
+    @Test
+    fun mapToToml_blankListItems_areFiltered() {
+        val toml = TomlParserUtil.mapToToml(
+            mapOf("start" to listOf("a", "", null, "b")),
+        )
+        assertTrue(toml.contains("start = [\"a\", \"b\"]"))
+    }
+
+    @Test
+    fun mapToToml_emptyTables_areOmitted() {
+        val data = mapOf<String, Any?>(
+            "auth" to emptyMap<String, Any?>(),
+            "log" to mapOf("level" to "info", "extra" to ""),
+        )
+        val toml = TomlParserUtil.mapToToml(data)
+        assertFalse(toml.contains("[auth]"))
+        assertTrue(toml.contains("[log]"))
+        assertTrue(toml.contains("level = \"info\""))
+        assertFalse(toml.contains("extra"))
+    }
+
+    @Test
+    fun mapToToml_emptyNestedTableHeader_isOmitted() {
+        val data = mapOf<String, Any?>(
+            "transport" to mapOf("poolCount" to 1L, "tls" to emptyMap<String, Any?>()),
+        )
+        val toml = TomlParserUtil.mapToToml(data)
+        assertTrue(toml.contains("[transport]"))
+        assertFalse(toml.contains("[transport.tls]"))
+    }
+
+    @Test
+    fun mapToToml_emptyArrayOfTablesItems_areSkipped() {
+        val data = mapOf<String, Any?>(
+            "proxies" to listOf(emptyMap<String, Any?>(), mapOf("name" to "ssh")),
+        )
+        val toml = TomlParserUtil.mapToToml(data)
+        assertEquals(1, toml.split("[[proxies]]").size - 1)
+        assertTrue(toml.contains("name = \"ssh\""))
+    }
+
+    @Test
+    fun parseThenSerialize_blankStringKeyIsDropped() {
+        val parsed = TomlParserUtil.parseToMap("serverAddr = \"\"")
+        assertEquals("", parsed["serverAddr"])
+        val out = TomlParserUtil.mapToToml(parsed)
+        assertFalse(out.contains("serverAddr"))
+    }
 }

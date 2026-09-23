@@ -170,6 +170,7 @@ private fun FormModeContent(
     onRename: (String) -> Unit,
 ) {
     val schema = viewModel.configSchema
+    val allSchemaFields = remember(schema) { schema.sections.flatMap { it.fields } }
     val currentSection by viewModel.currentSection.collectAsStateWithLifecycle()
     val expandedSections by viewModel.expandedSections.collectAsStateWithLifecycle()
 
@@ -233,6 +234,7 @@ private fun FormModeContent(
                         SectionCard(
                             section = section,
                             formData = viewModel.formData,
+                            schemaFields = allSchemaFields,
                             expanded = expandedSections.contains(section.id),
                             onToggle = { viewModel.toggleSection(section.id) },
                         )

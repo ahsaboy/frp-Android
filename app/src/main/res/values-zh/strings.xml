@@ -135,6 +135,8 @@
     <string name="add_item">添加条目</string>
     <string name="field_key_label">键</string>
     <string name="field_value_label">值</string>
+    <string name="field_unset">未设置</string>
+    <string name="field_uses_default">默认值：%1$s</string>
     <string name="expand">展开</string>
     <string name="collapse">收起</string>
     <string name="about_title">关于</string>

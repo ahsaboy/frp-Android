@@ -126,9 +126,13 @@ private fun ProxyCard(
                 Column(modifier = Modifier.padding(top = 12.dp)) {
                     if (typeSchema != null) {
                         val allFields = typeSchema.baseFields + typeSchema.typeSpecificFields
+                        // visibleWhen 基于有效值（原始值 + 默认值），与配置输出语义解耦
+                        val effective = remember(proxy, allFields) {
+                            SchemaHelpers.withDefaults(proxy, allFields)
+                        }
                         for (field in allFields) {
                             if (field.key == "type") continue
-                            val visible = field.visibleWhen?.invoke(proxy) ?: true
+                            val visible = field.visibleWhen?.invoke(effective) ?: true
                             if (visible) {
                                 val value = SchemaHelpers.getValueByPath(proxy, field.key)
                                 if (field.type == FieldType.OBJECT) {

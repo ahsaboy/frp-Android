@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -119,9 +120,13 @@ private fun VisitorCard(
                 Column(modifier = Modifier.padding(top = 12.dp)) {
                     if (typeSchema != null) {
                         val allFields = typeSchema.baseFields + typeSchema.typeSpecificFields
+                        // visibleWhen 基于有效值（原始值 + 默认值），与配置输出语义解耦
+                        val effective = remember(visitor, allFields) {
+                            SchemaHelpers.withDefaults(visitor, allFields)
+                        }
                         for (field in allFields) {
                             if (field.key == "type") continue
-                            val visible = field.visibleWhen?.invoke(visitor) ?: true
+                            val visible = field.visibleWhen?.invoke(effective) ?: true
                             if (visible) {
                                 val value = SchemaHelpers.getValueByPath(visitor, field.key)
                                 if (field.type == FieldType.OBJECT) {

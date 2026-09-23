@@ -46,7 +46,7 @@ fun FieldRenderer(
         FieldType.STRING -> StringField(field, value as? String ?: "", onChange, modifier)
         FieldType.INT -> IntField(field, (value as? Number)?.toInt(), onChange, modifier)
         FieldType.LONG -> LongField(field, (value as? Number)?.toLong(), onChange, modifier)
-        FieldType.BOOL -> BoolField(field, value as? Boolean ?: false, onChange, modifier)
+        FieldType.BOOL -> BoolField(field, value, onChange, modifier)
         FieldType.ENUM -> EnumField(field, value as? String ?: "", onChange, modifier)
         FieldType.STRING_LIST -> StringListField(field, (value as? List<*>)?.filterIsInstance<String>() ?: emptyList(), onChange, modifier)
         FieldType.MAP_STRING -> MapField(field, (value as? Map<*, *>)?.mapKeys { it.key.toString() }?.mapValues { it.value.toString() } ?: emptyMap(), onChange, modifier)
@@ -57,19 +57,45 @@ fun FieldRenderer(
 }
 
 @Composable
+private fun FieldFootnote(
+    field: FieldSchema,
+    showDefault: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val defaultText = if (showDefault && field.defaultValue != null) {
+        stringResource(R.string.field_uses_default, field.defaultValue.toString())
+    } else {
+        ""
+    }
+    val text = listOf(field.hint, defaultText).filter { it.isNotEmpty() }.joinToString("  ·  ")
+    if (text.isNotEmpty()) {
+        Text(
+            text = text,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
+            modifier = modifier.fillMaxWidth().padding(top = 4.dp),
+        )
+    }
+}
+
+@Composable
 private fun StringField(
     field: FieldSchema,
     value: String,
     onChange: (Any?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    TextField(
-        value = value,
-        onValueChange = { onChange(it) },
-        label = field.label,
-        singleLine = true,
-        modifier = modifier.fillMaxWidth(),
-    )
+    Column(modifier = modifier.fillMaxWidth()) {
+        TextField(
+            value = value,
+            //清空 = 未设置：传 null，由数据层移除该键
+            onValueChange = { onChange(if (it.isEmpty()) null else it) },
+            label = field.label,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FieldFootnote(field, showDefault = value.isEmpty())
+    }
 }
 
 @Composable
@@ -80,18 +106,21 @@ private fun IntField(
     modifier: Modifier = Modifier,
 ) {
     var textValue by remember(value) { mutableStateOf(value?.toString() ?: "") }
-    TextField(
-        value = textValue,
-        onValueChange = {
-            textValue = it
-            val parsed = it.toIntOrNull()
-            if (parsed != null) onChange(parsed) else if (it.isEmpty()) onChange(null)
-        },
-        label = field.label,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = modifier.fillMaxWidth(),
-    )
+    Column(modifier = modifier.fillMaxWidth()) {
+        TextField(
+            value = textValue,
+            onValueChange = {
+                textValue = it
+                val parsed = it.toIntOrNull()
+                if (parsed != null) onChange(parsed) else if (it.isEmpty()) onChange(null)
+            },
+            label = field.label,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FieldFootnote(field, showDefault = value == null)
+    }
 }
 
 @Composable
@@ -102,33 +131,41 @@ private fun LongField(
     modifier: Modifier = Modifier,
 ) {
     var textValue by remember(value) { mutableStateOf(value?.toString() ?: "") }
-    TextField(
-        value = textValue,
-        onValueChange = {
-            textValue = it
-            val parsed = it.toLongOrNull()
-            if (parsed != null) onChange(parsed) else if (it.isEmpty()) onChange(null)
-        },
-        label = field.label,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = modifier.fillMaxWidth(),
-    )
+    Column(modifier = modifier.fillMaxWidth()) {
+        TextField(
+            value = textValue,
+            onValueChange = {
+                textValue = it
+                val parsed = it.toLongOrNull()
+                if (parsed != null) onChange(parsed) else if (it.isEmpty()) onChange(null)
+            },
+            label = field.label,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FieldFootnote(field, showDefault = value == null)
+    }
 }
 
 @Composable
 private fun BoolField(
     field: FieldSchema,
-    value: Boolean,
+    value: Any?,
     onChange: (Any?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SwitchPreference(
-        modifier = modifier,
-        title = field.label,
-        checked = value,
-        onCheckedChange = { onChange(it) },
-    )
+    //开关必须展示一个状态：未设置时回显 schema 默认值，拨动后才写入显式值
+    val checked = (value as? Boolean) ?: (field.defaultValue as? Boolean) ?: false
+    Column(modifier = modifier.fillMaxWidth()) {
+        SwitchPreference(
+            modifier = Modifier.fillMaxWidth(),
+            title = field.label,
+            checked = checked,
+            onCheckedChange = { onChange(it) },
+        )
+        FieldFootnote(field, showDefault = value == null)
+    }
 }
 
 @Composable
@@ -138,17 +175,30 @@ private fun EnumField(
     onChange: (Any?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val options = field.enumOptions.ifEmpty {
-        listOf(field.defaultValue?.toString().orEmpty())
+    val unsetLabel = stringResource(R.string.field_unset)
+    // 历史上用空字符串表达“未设置”的选项，统一由未设置项承载
+    val configured = field.enumOptions.filter { it.isNotEmpty() }.ifEmpty {
+        listOfNotNull(field.defaultValue?.toString()?.takeIf { it.isNotEmpty() })
     }
-    val selectedIndex = options.indexOf(value).takeIf { it >= 0 } ?: 0
-    OverlayDropdownPreference(
-        modifier = modifier.fillMaxWidth(),
-        title = field.label,
-        items = options,
-        selectedIndex = selectedIndex,
-        onSelectedIndexChange = { index -> onChange(options[index]) },
-    )
+    val allowsUnset = !field.required
+    //保留不在选项列表中的历史值，避免静默丢失用户配置
+    val unknownValue = value.takeIf { it.isNotEmpty() && it !in configured }
+    val entries: List<String?> =
+        (if (allowsUnset) listOf(null) else emptyList()) +
+            configured +
+            (if (unknownValue != null) listOf(unknownValue) else emptyList())
+    val selectedIndex = if (value.isEmpty() && allowsUnset) 0 else entries.indexOf(value)
+    Column(modifier = modifier.fillMaxWidth()) {
+        OverlayDropdownPreference(
+            modifier = Modifier.fillMaxWidth(),
+            title = field.label,
+            items = entries.map { it ?: unsetLabel },
+            selectedIndex = selectedIndex,
+            //选中“未设置”则传 null，由数据层移除该键
+            onSelectedIndexChange = { index -> onChange(entries[index]) },
+        )
+        FieldFootnote(field, showDefault = value.isEmpty())
+    }
 }
 
 @Composable
@@ -160,6 +210,7 @@ private fun StringListField(
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(field.label, style = MiuixTheme.textStyles.body2, modifier = Modifier.padding(bottom = 4.dp))
+        FieldFootnote(field, showDefault = false)
         for ((index, item) in value.withIndex()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 TextField(
@@ -207,6 +258,7 @@ private fun MapField(
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(field.label, style = MiuixTheme.textStyles.body2, modifier = Modifier.padding(bottom = 4.dp))
+        FieldFootnote(field, showDefault = false)
         for ((key, v) in value) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 TextField(
@@ -222,7 +274,8 @@ private fun MapField(
                     value = v,
                     onValueChange = { newVal ->
                         val newMap = value.toMutableMap()
-                        newMap[key] = newVal
+                        //空值 = 未设置：直接移除该条目
+                        if (newVal.isEmpty()) newMap.remove(key) else newMap[key] = newVal
                         onChange(newMap)
                     },
                     singleLine = true,
@@ -259,6 +312,7 @@ private fun BoolMapField(
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(field.label, style = MiuixTheme.textStyles.body2, modifier = Modifier.padding(bottom = 4.dp))
+        FieldFootnote(field, showDefault = false)
         for ((key, enabled) in value) {
             SwitchPreference(
                 title = key,
@@ -328,6 +382,7 @@ private fun ObjectListField(
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(field.label, style = MiuixTheme.textStyles.body2, modifier = Modifier.padding(bottom = 4.dp))
+        FieldFootnote(field, showDefault = false)
         for ((index, item) in value.withIndex()) {
             Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -394,7 +449,7 @@ private fun AddMapEntryButton(onAdd: (String, String) -> Unit) {
             modifier = Modifier.weight(0.4f),
         )
         IconButton(onClick = {
-            if (key.isNotEmpty()) {
+            if (key.isNotEmpty() && value.isNotEmpty()) {
                 onAdd(key, value)
                 key = ""
                 value = ""

@@ -14,7 +14,7 @@ class ConfigFormData {
     val visitors = _visitors.asStateFlow()
 
     fun loadFromMap(data: Map<String, Any?>) {
-        val map = data.toMutableMap()
+        val map = pruneUnsetValues(data)
         val proxiesList = (map.remove("proxies") as? List<*>)
             ?.filterIsInstance<Map<String, Any?>>()
             ?.map { it.toMutableMap() }
@@ -44,6 +44,38 @@ class ConfigFormData {
     fun loadFromToml(tomlString: String) {
         val data = TomlParserUtil.parseToMap(tomlString)
         loadFromMap(data)
+    }
+
+    /**
+     * 载入时把空值统一归一化为“未设置”：null、空白字符串、空表、
+     * 空集合以及全空条目一律移除，让旧版本写入的 `xxx = ""` 在下次保存后自然消失。
+     */
+    private fun pruneUnsetValues(data: Map<*, *>): MutableMap<String, Any?> {
+        val result = mutableMapOf<String, Any?>()
+        for ((key, value) in data) {
+            val name = key as? String ?: continue
+            when {
+                value == null -> Unit
+                value is String && value.isBlank() -> Unit
+                value is Map<*, *> -> {
+                    val nested = pruneUnsetValues(value)
+                    if (nested.isNotEmpty()) result[name] = nested
+                }
+                value is List<*> -> {
+                    val items = value.mapNotNull { item ->
+                        when {
+                            item == null -> null
+                            item is String && item.isBlank() -> null
+                            item is Map<*, *> -> pruneUnsetValues(item).takeIf { it.isNotEmpty() }
+                            else -> item
+                        }
+                    }
+                    if (items.isNotEmpty()) result[name] = items
+                }
+                else -> result[name] = value
+            }
+        }
+        return result
     }
 
     fun toToml(): String {

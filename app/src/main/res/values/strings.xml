@@ -135,6 +135,8 @@
     <string name="add_item">Add item</string>
     <string name="field_key_label">Key</string>
     <string name="field_value_label">Value</string>
+    <string name="field_unset">Not set</string>
+    <string name="field_uses_default">Default: %1$s</string>
     <string name="expand">Expand</string>
     <string name="collapse">Collapse</string>
     <string name="about_title">About</string>

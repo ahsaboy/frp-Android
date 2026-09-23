@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -18,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.ConfigFormData
 import io.github.acedroidx.frp.config.ConfigSection
+import io.github.acedroidx.frp.config.FieldSchema
 import io.github.acedroidx.frp.config.FieldType
 import io.github.acedroidx.frp.config.SchemaHelpers
 import top.yukonga.miuix.kmp.basic.Card
@@ -34,9 +36,15 @@ fun SectionCard(
     formData: ConfigFormData,
     expanded: Boolean,
     onToggle: () -> Unit,
+    schemaFields: List<FieldSchema>,
     modifier: Modifier = Modifier,
 ) {
     val values by formData.values.collectAsStateWithLifecycle()
+    // visibleWhen 基于“有效值”（原始值 + 未设置字段的默认值）判定，
+    // 保证默认值不写入配置的同时，依赖默认值的字段仍能正确显示/隐藏。
+    val effectiveValues = remember(values, schemaFields) {
+        SchemaHelpers.withDefaults(values, schemaFields)
+    }
 
     Card(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
@@ -62,12 +70,12 @@ fun SectionCard(
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
                     for (field in section.fields) {
-                        val visible = field.visibleWhen?.invoke(values) ?: true
+                        val visible = field.visibleWhen?.invoke(effectiveValues) ?: true
                         if (visible) {
                             val currentValue = SchemaHelpers.getValueByPath(values, field.key)
                             if (field.type == FieldType.OBJECT) {
                                 // Object fields are rendered by their children in a sub-section
-                                ObjectSubSection(field, formData)
+                                ObjectSubSection(field, formData, effectiveValues)
                             } else {
                                 FieldRenderer(
                                     field = field,
@@ -88,6 +96,7 @@ fun SectionCard(
 private fun ObjectSubSection(
     field: io.github.acedroidx.frp.config.FieldSchema,
     formData: ConfigFormData,
+    effectiveValues: Map<String, Any?>,
 ) {
     val values by formData.values.collectAsStateWithLifecycle()
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -97,7 +106,7 @@ private fun ObjectSubSection(
             modifier = Modifier.padding(bottom = 8.dp),
         )
         for (child in field.children) {
-            val visible = child.visibleWhen?.invoke(values) ?: true
+            val visible = child.visibleWhen?.invoke(effectiveValues) ?: true
             if (visible) {
                 val currentValue = SchemaHelpers.getValueByPath(values, child.key)
                 FieldRenderer(
