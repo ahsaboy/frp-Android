@@ -114,13 +114,13 @@ configurations.all {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-service:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
+    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.appcompat:appcompat:1.8.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-service:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
 
-    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
     // Android Studio Preview support
@@ -132,20 +132,20 @@ dependencies {
     // Integration with activities
     implementation("androidx.activity:activity-compose:1.13.0")
     // NavigationEvent base library (compose bindings are patched locally for miuix compatibility)
-    implementation("androidx.navigationevent:navigationevent:1.1.0")
+    implementation("androidx.navigationevent:navigationevent:1.1.2")
 
     // TOML parsing/serialization
-    implementation("com.akuleshov7:ktoml-core:0.5.2")
+    implementation("com.akuleshov7:ktoml-core:0.7.1")
 
     // Miuix theme (HyperOS style colors)
-    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.0")
-    implementation("top.yukonga.miuix.kmp:miuix-preference-android:0.9.0")
-    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.0")
+    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-preference-android:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.4")
 
     // Tasker Plugin Library
     implementation("com.joaomgcd:taskerpluginlibrary:0.4.10")
 
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }

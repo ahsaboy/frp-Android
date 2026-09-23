@@ -37,11 +37,11 @@ object TomlParserUtil {
         for (child in node.children) {
             when (child) {
                 is TomlKeyValuePrimitive -> {
-                    val key = child.key.content
+                    val key = child.key.last()
                     result[key] = extractTomlValue(child.value)
                 }
                 is TomlKeyValueArray -> {
-                    val key = child.key.content
+                    val key = child.key.last()
                     val arrayValue = child.value
                     if (arrayValue is TomlArray) {
                         result[key] = arrayValue.parse(tomlInputConfig).map { extractTomlValue(it) }
