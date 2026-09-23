@@ -164,18 +164,22 @@ val jniLibsArm64 = File(layout.projectDirectory.asFile, "src/main/jniLibs/arm64-
 val downloadFrp = tasks.register("downloadFrp") {
     group = "frp"
     description = "下载锁定版本的 frp 官方二进制到本地缓存"
-    outputs.file(frpTarFile)
-    outputs.upToDateWhen { frpTarFile.exists() }
+    // 局部化：doLast 不能捕获脚本对象引用（配置缓存要求）
+    val tarFile = frpTarFile
+    val tarName = frpTarName
+    val version = frpVersion
+    outputs.file(tarFile)
+    outputs.upToDateWhen { tarFile.exists() }
     doLast {
-        frpTarFile.parentFile.mkdirs()
+        tarFile.parentFile.mkdirs()
         val url =
-            "https://github.com/fatedier/frp/releases/download/v$frpVersion/$frpTarName"
-        logger.lifecycle("Downloading frp v$frpVersion: $url")
-        val part = File(frpTarFile.parentFile, "$frpTarName.part")
+            "https://github.com/fatedier/frp/releases/download/v$version/$tarName"
+        logger.lifecycle("Downloading frp v$version: $url")
+        val part = File(tarFile.parentFile, "$tarName.part")
         URL(url).openStream().use { input ->
             part.outputStream().use { output -> input.copyTo(output) }
         }
-        if (!part.renameTo(frpTarFile)) error("下载缓存重命名失败: $part")
+        if (!part.renameTo(tarFile)) error("下载缓存重命名失败: $part")
     }
 }
 
@@ -191,20 +195,23 @@ val extractFrp = tasks.register<Copy>("extractFrp") {
 val installFrp = tasks.register("installFrp") {
     group = "frp"
     description = "安装 frpc/frps 到 jniLibs"
+    // 局部化：doLast 不能捕获脚本对象引用（配置缓存要求）
+    val extractDir = frpExtractDir
+    val libDir = jniLibsArm64
     dependsOn(extractFrp)
-    inputs.dir(frpExtractDir)
-    outputs.files(File(jniLibsArm64, "libfrpc.so"), File(jniLibsArm64, "libfrps.so"))
+    inputs.dir(extractDir)
+    outputs.files(File(libDir, "libfrpc.so"), File(libDir, "libfrps.so"))
     doLast {
-        jniLibsArm64.mkdirs()
-        frpExtractDir.walkTopDown()
+        libDir.mkdirs()
+        extractDir.walkTopDown()
             .filter { it.isFile && (it.name == "frpc" || it.name == "frps") }
             .forEach { src ->
-                val target = File(jniLibsArm64, "lib${src.name}.so")
+                val target = File(libDir, "lib${src.name}.so")
                 src.copyTo(target, overwrite = true)
                 target.setExecutable(true, false)
                 logger.lifecycle("Installed ${target.name}")
             }
-        check(File(jniLibsArm64, "libfrpc.so").exists() && File(jniLibsArm64, "libfrps.so").exists()) {
+        check(File(libDir, "libfrpc.so").exists() && File(libDir, "libfrps.so").exists()) {
             "frp 二进制解压结果不完整"
         }
     }
