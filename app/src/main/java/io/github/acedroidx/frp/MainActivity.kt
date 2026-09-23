@@ -655,7 +655,9 @@ class MainActivity : BaseActivity() {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp),
                 colors = CardDefaults.defaultColors(color = containerColor),
                 onClick = {},
                 showIndication = true,
