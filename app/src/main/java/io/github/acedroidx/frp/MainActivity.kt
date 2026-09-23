@@ -38,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -67,9 +66,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -79,26 +78,27 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SearchBar
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult
-import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.ExpandLess
 import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.icon.extended.Settings
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
-import androidx.compose.ui.unit.DpSize
+import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -318,44 +318,94 @@ class MainActivity : BaseActivity() {
     @Preview(showBackground = true)
     @Composable
     fun MainContent(modifier: Modifier = Modifier) {
-        val frpcConfigList by frpcConfigList.collectAsStateWithLifecycle(emptyList())
-        val frpsConfigList by frpsConfigList.collectAsStateWithLifecycle(emptyList())
-        LazyColumn(
-            modifier = modifier.fillMaxWidth(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                horizontal = 12.dp,
-                vertical = 8.dp,
-            ),
-        ) {
-            if (frpcConfigList.isEmpty() && frpsConfigList.isEmpty()) {
-                item(key = "empty") {
-                    Text(
-                        stringResource(R.string.no_config),
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center,
+        val frpcConfigs by frpcConfigList.collectAsStateWithLifecycle(emptyList())
+        val frpsConfigs by frpsConfigList.collectAsStateWithLifecycle(emptyList())
+        var query by remember { mutableStateOf("") }
+        var searchExpanded by remember { mutableStateOf(false) }
+        var isRefreshing by remember { mutableStateOf(false) }
+        val refreshScope = rememberCoroutineScope()
+        val pullToRefreshState = rememberPullToRefreshState()
+        val normalizedQuery = query.trim()
+        val filter: (FrpConfig) -> Boolean = { config ->
+            normalizedQuery.isEmpty() || config.fileName.contains(normalizedQuery, ignoreCase = true)
+        }
+        val frpcConfigList = frpcConfigs.filter(filter)
+        val frpsConfigList = frpsConfigs.filter(filter)
+
+        Column(modifier = modifier.fillMaxWidth()) {
+            SearchBar(
+                modifier = Modifier.fillMaxWidth(),
+                expanded = searchExpanded,
+                onExpandedChange = { searchExpanded = it },
+                inputField = {
+                    InputField(
+                        query = query,
+                        onQueryChange = { query = it },
+                        onSearch = { searchExpanded = false },
+                        expanded = searchExpanded,
+                        onExpandedChange = { searchExpanded = it },
+                        label = stringResource(R.string.search_config),
                     )
-                }
-            }
-            if (frpcConfigList.isNotEmpty()) {
-                item(key = "frpc_header") {
-                    Text("frpc", style = MiuixTheme.textStyles.headline1)
-                }
-                items(
-                    items = frpcConfigList,
-                    key = { config -> "frpc:${config.fileName}" },
-                ) { config ->
-                    FrpConfigItem(config)
-                }
-            }
-            if (frpsConfigList.isNotEmpty()) {
-                item(key = "frps_header") {
-                    Text("frps", style = MiuixTheme.textStyles.headline1)
-                }
-                items(
-                    items = frpsConfigList,
-                    key = { config -> "frps:${config.fileName}" },
-                ) { config ->
-                    FrpConfigItem(config)
+                },
+            ) { }
+
+            PullToRefresh(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    if (!isRefreshing) {
+                        isRefreshing = true
+                        updateConfigList()
+                        refreshScope.launch {
+                            delay(300)
+                            isRefreshing = false
+                        }
+                    }
+                },
+                pullToRefreshState = pullToRefreshState,
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = 12.dp,
+                        vertical = 8.dp,
+                    ),
+                ) {
+                    if (frpcConfigList.isEmpty() && frpsConfigList.isEmpty()) {
+                        item(key = "empty") {
+                            Text(
+                                text = if (normalizedQuery.isEmpty()) {
+                                    stringResource(R.string.no_config)
+                                } else {
+                                    stringResource(R.string.no_matching_config)
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                    if (frpcConfigList.isNotEmpty()) {
+                        item(key = "frpc_header") {
+                            Text("frpc", style = MiuixTheme.textStyles.headline1)
+                        }
+                        items(
+                            items = frpcConfigList,
+                            key = { config -> "frpc:${config.fileName}" },
+                        ) { config ->
+                            FrpConfigItem(config)
+                        }
+                    }
+                    if (frpsConfigList.isNotEmpty()) {
+                        item(key = "frps_header") {
+                            Text("frps", style = MiuixTheme.textStyles.headline1)
+                        }
+                        items(
+                            items = frpsConfigList,
+                            key = { config -> "frps:${config.fileName}" },
+                        ) { config ->
+                            FrpConfigItem(config)
+                        }
+                    }
                 }
             }
         }
@@ -667,56 +717,48 @@ class MainActivity : BaseActivity() {
     @Composable
     @Preview(showBackground = true)
     fun CreateConfigDialog(onClose: () -> Unit = {}) {
-        OverlayDialog(
+        OverlayBottomSheet(
             show = true,
             title = stringResource(R.string.create_frp_select),
-            onDismissRequest = { onClose() },
+            onDismissRequest = onClose,
             content = {
-                // 创建配置按钮
-                Row(
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Button(onClick = { startConfigActivity(FrpType.FRPC);onClose() }) {
-                        Text("frpc")
-                    }
-                    Button(onClick = { startConfigActivity(FrpType.FRPS);onClose() }) {
-                        Text("frps")
-                    }
-                }
-
-                // 导入配置按钮
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text(
-                        stringResource(R.string.import_config),
+                    TextButton(
+                        text = "frpc",
+                        onClick = { startConfigActivity(FrpType.FRPC); onClose() },
                         modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                        style = MiuixTheme.textStyles.title2
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        TextButton(
-                            text = stringResource(R.string.import_zip),
-                            onClick = {
-                                zipFileLauncher.launch("application/zip")
-                                onClose()
-                            }
-                        )
-                        TextButton(
-                            text = stringResource(R.string.import_toml),
-                            onClick = {
-                                tomlFileLauncher.launch("*/*")
-                                onClose()
-                            }
-                        )
-                    }
+                    TextButton(
+                        text = "frps",
+                        onClick = { startConfigActivity(FrpType.FRPS); onClose() },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = stringResource(R.string.import_config),
+                        style = MiuixTheme.textStyles.title3,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                    )
+                    TextButton(
+                        text = stringResource(R.string.import_zip),
+                        onClick = {
+                            zipFileLauncher.launch("application/zip")
+                            onClose()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    TextButton(
+                        text = stringResource(R.string.import_toml),
+                        onClick = {
+                            tomlFileLauncher.launch("*/*")
+                            onClose()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
-            }
+            },
         )
     }
 

@@ -1,8 +1,5 @@
 package io.github.acedroidx.frp.config.ui
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,22 +15,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.FieldSchema
 import io.github.acedroidx.frp.config.FieldType
-import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -122,13 +118,11 @@ private fun BoolField(
     onChange: (Any?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BasicComponent(
+    SwitchPreference(
         modifier = modifier,
         title = field.label,
-        onClick = { onChange(!value) },
-        endActions = {
-            Switch(checked = value, onCheckedChange = { onChange(it) })
-        },
+        checked = value,
+        onCheckedChange = { onChange(it) },
     )
 }
 
@@ -139,44 +133,17 @@ private fun EnumField(
     onChange: (Any?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val displayValue = value.ifEmpty { field.defaultValue?.toString() ?: "" }
-    Box(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = field.label,
-                style = MiuixTheme.textStyles.body1,
-            )
-            Text(
-                text = displayValue,
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.primary,
-            )
-        }
-        OverlayListPopup(show = expanded, onDismissRequest = { expanded = false }) {
-            ListPopupColumn {
-                field.enumOptions.forEachIndexed { index, option ->
-                    DropdownImpl(
-                        text = option,
-                        optionSize = field.enumOptions.size,
-                        isSelected = value == option,
-                        index = index,
-                        onSelectedIndexChange = {
-                            onChange(option)
-                            expanded = false
-                        },
-                    )
-                }
-            }
-        }
+    val options = field.enumOptions.ifEmpty {
+        listOf(field.defaultValue?.toString().orEmpty())
     }
+    val selectedIndex = options.indexOf(value).takeIf { it >= 0 } ?: 0
+    OverlayDropdownPreference(
+        modifier = modifier.fillMaxWidth(),
+        title = field.label,
+        items = options,
+        selectedIndex = selectedIndex,
+        onSelectedIndexChange = { index -> onChange(options[index]) },
+    )
 }
 
 @Composable
@@ -206,7 +173,7 @@ private fun StringListField(
                     onChange(newList)
                 }) {
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_baseline_delete_24),
+                        imageVector = MiuixIcons.Delete,
                         contentDescription = stringResource(R.string.delete_item)
                     )
                 }
@@ -219,7 +186,7 @@ private fun StringListField(
             onChange(newList)
         }) {
             Icon(
-                painter = painterResource(id = R.drawable.ic_add_24dp),
+                imageVector = MiuixIcons.Add,
                 contentDescription = stringResource(R.string.add_item)
             )
         }
@@ -263,7 +230,7 @@ private fun MapField(
                     onChange(newMap)
                 }) {
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_baseline_delete_24),
+                        imageVector = MiuixIcons.Delete,
                         contentDescription = stringResource(R.string.delete_item)
                     )
                 }
@@ -306,7 +273,7 @@ private fun AddMapEntryButton(onAdd: (String, String) -> Unit) {
             }
         }) {
             Icon(
-                painter = painterResource(id = R.drawable.ic_add_24dp),
+                imageVector = MiuixIcons.Add,
                 contentDescription = stringResource(R.string.add_item)
             )
         }

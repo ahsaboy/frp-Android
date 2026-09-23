@@ -12,7 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -24,6 +23,9 @@ import io.github.acedroidx.frp.config.SchemaHelpers
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.ExpandLess
+import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -50,9 +52,7 @@ fun SectionCard(
                     modifier = Modifier.weight(1f),
                 )
                 Icon(
-                    painter = painterResource(
-                        if (expanded) R.drawable.ic_expand_less_24dp else R.drawable.ic_expand_more_24dp
-                    ),
+                    imageVector = if (expanded) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
                     contentDescription = stringResource(
                         if (expanded) R.string.collapse else R.string.expand
                     ),
