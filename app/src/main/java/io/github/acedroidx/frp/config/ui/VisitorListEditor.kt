@@ -1,7 +1,6 @@
 package io.github.acedroidx.frp.config.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +20,7 @@ import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.ConfigFormViewModel
 import io.github.acedroidx.frp.config.FieldType
 import io.github.acedroidx.frp.config.SchemaHelpers
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -94,26 +94,27 @@ private fun VisitorCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onToggle() },
-                verticalAlignment = Alignment.CenterVertically,
+            BasicComponent(
+                onClick = onToggle,
+                endActions = {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = MiuixIcons.Delete,
+                            contentDescription = stringResource(R.string.delete_item)
+                        )
+                    }
+                    Icon(
+                        imageVector = if (expanded) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
+                        contentDescription = stringResource(
+                            if (expanded) R.string.collapse else R.string.expand
+                        ),
+                    )
+                },
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column {
                     Text(visitorName, style = MiuixTheme.textStyles.title3)
                     Text(visitorType.uppercase(), style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = MiuixIcons.Delete,
-                        contentDescription = stringResource(R.string.delete_item)
-                    )
-                }
-                Icon(
-                    imageVector = if (expanded) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
-                    contentDescription = stringResource(
-                        if (expanded) R.string.collapse else R.string.expand
-                    ),
-                )
             }
 
             AnimatedVisibility(visible = expanded) {

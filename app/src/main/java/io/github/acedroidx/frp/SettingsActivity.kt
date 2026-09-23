@@ -10,7 +10,6 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -488,26 +488,18 @@ class SettingsActivity : BaseActivity() {
         statusMessage: String?,
         onClick: () -> Unit
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onClick() }
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Column(modifier = Modifier.fillMaxWidth()) {
+            BasicComponent(
+                onClick = onClick,
+                endActions = {
+                    Icon(
+                        imageVector = MiuixIcons.UploadCloud,
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                },
             ) {
-                Text(
-                    text = title,
-                    style = MiuixTheme.textStyles.body1
-                )
-                Icon(
-                    imageVector = MiuixIcons.UploadCloud,
-                    contentDescription = null,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
+                Text(text = title, style = MiuixTheme.textStyles.body1)
             }
             if (statusMessage != null) {
                 Text(

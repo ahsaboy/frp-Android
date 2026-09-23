@@ -1,9 +1,7 @@
 package io.github.acedroidx.frp.config.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -11,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -22,6 +19,7 @@ import io.github.acedroidx.frp.config.ConfigSection
 import io.github.acedroidx.frp.config.FieldSchema
 import io.github.acedroidx.frp.config.FieldType
 import io.github.acedroidx.frp.config.SchemaHelpers
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -50,21 +48,18 @@ fun SectionCard(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
         Column {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onToggle() }.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            BasicComponent(
+                onClick = onToggle,
+                endActions = {
+                    Icon(
+                        imageVector = if (expanded) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
+                        contentDescription = stringResource(
+                            if (expanded) R.string.collapse else R.string.expand
+                        ),
+                    )
+                },
             ) {
-                Text(
-                    text = section.title,
-                    style = MiuixTheme.textStyles.title2,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    imageVector = if (expanded) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
-                    contentDescription = stringResource(
-                        if (expanded) R.string.collapse else R.string.expand
-                    ),
-                )
+                Text(section.title, style = MiuixTheme.textStyles.title2)
             }
 
             AnimatedVisibility(visible = expanded) {

@@ -23,6 +23,7 @@ import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.ConfigFormViewModel
 import io.github.acedroidx.frp.config.FieldType
 import io.github.acedroidx.frp.config.SchemaHelpers
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
@@ -100,26 +101,27 @@ private fun ProxyCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onToggle() },
-                verticalAlignment = Alignment.CenterVertically,
+            BasicComponent(
+                onClick = onToggle,
+                endActions = {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = MiuixIcons.Delete,
+                            contentDescription = stringResource(R.string.delete_item)
+                        )
+                    }
+                    Icon(
+                        imageVector = if (expanded) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
+                        contentDescription = stringResource(
+                            if (expanded) R.string.collapse else R.string.expand
+                        ),
+                    )
+                },
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column {
                     Text(proxyName, style = MiuixTheme.textStyles.title3)
                     Text(proxyType.uppercase(), style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = MiuixIcons.Delete,
-                        contentDescription = stringResource(R.string.delete_item)
-                    )
-                }
-                Icon(
-                    imageVector = if (expanded) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
-                    contentDescription = stringResource(
-                        if (expanded) R.string.collapse else R.string.expand
-                    ),
-                )
             }
 
             AnimatedVisibility(visible = expanded) {

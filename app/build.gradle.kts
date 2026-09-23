@@ -23,7 +23,7 @@ val hasSigning = (!envStoreFile.isNullOrEmpty()) ||
 val frpVersion: String = (project.findProperty("frpVersion") as? String)
     ?: error("gradle.properties 中缺少 frpVersion")
 
-val appVersionName = "1.5.10"
+val appVersionName = "1.5.11"
 
 android {
     androidResources {
@@ -55,7 +55,7 @@ android {
         minSdk = 24
         targetSdk = 37
         compileSdk = 37
-        versionCode = 27
+        versionCode = 28
         versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -144,6 +144,8 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.4")
     implementation("top.yukonga.miuix.kmp:miuix-preference-android:0.9.4")
     implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-squircle-android:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-shader-android:0.9.4")
 
     // Tasker Plugin Library
     implementation("com.joaomgcd:taskerpluginlibrary:0.4.10")
