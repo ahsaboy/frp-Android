@@ -1,4 +1,6 @@
+import java.io.File
 import java.io.FileInputStream
+import java.net.URL
 import java.util.Properties
 
 plugins {
@@ -9,7 +11,19 @@ plugins {
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties()
-keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+if (keystorePropertiesFile.exists()) {
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
+}
+// 没有签名配置（新 clone / 无签名环境）时不创建 signingConfig，避免配置阶段崩溃
+val envStoreFile = System.getenv("STORE_FILE")
+val hasSigning = (!envStoreFile.isNullOrEmpty()) ||
+    keystoreProperties.getProperty("storeFile") != null
+
+// frp 版本统一由 gradle.properties 维护（./gradlew updateFrp 升级到官方最新版）
+val frpVersion: String = (project.findProperty("frpVersion") as? String)
+    ?: error("gradle.properties 中缺少 frpVersion")
+
+val appVersionName = "1.5.9"
 
 android {
     androidResources {
@@ -22,16 +36,17 @@ android {
     }
 
     signingConfigs {
-        create("AceKeystore") {
-            keyAlias = System.getenv("KEY_ALIAS") ?: keystoreProperties["keyAlias"] as String
-            keyPassword =
-                System.getenv("KEY_PASSWORD") ?: keystoreProperties["keyPassword"] as String
-            storeFile =
-                if (System.getenv("STORE_FILE") != null && System.getenv("STORE_FILE") != "") file("../keystore.jks") else file(
-                    keystoreProperties["storeFile"] as String
-                )
-            storePassword =
-                System.getenv("STORE_PASSWORD") ?: keystoreProperties["storePassword"] as String
+        if (hasSigning) {
+            create("AceKeystore") {
+                keyAlias = System.getenv("KEY_ALIAS")
+                    ?: keystoreProperties.getProperty("keyAlias") ?: ""
+                keyPassword = System.getenv("KEY_PASSWORD")
+                    ?: keystoreProperties.getProperty("keyPassword") ?: ""
+                storeFile = if (!envStoreFile.isNullOrEmpty()) file("../keystore.jks")
+                else file(keystoreProperties.getProperty("storeFile")!!)
+                storePassword = System.getenv("STORE_PASSWORD")
+                    ?: keystoreProperties.getProperty("storePassword") ?: ""
+            }
         }
     }
 
@@ -41,13 +56,11 @@ android {
         targetSdk = 37
         compileSdk = 37
         versionCode = 26
-        versionName = "1.5.9"
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        signingConfig = signingConfigs.getByName("AceKeystore")
-
-        buildConfigField("String", "FrpVersion", "\"0.67.0\"")
+        buildConfigField("String", "FrpVersion", "\"$frpVersion\"")
         buildConfigField("String", "FrpcFileName", "\"libfrpc.so\"")
         buildConfigField("String", "FrpsFileName", "\"libfrps.so\"")
         buildConfigField("String", "FrpcConfigFileName", "\"frpc.toml\"")
@@ -66,10 +79,10 @@ android {
                 // Includes a local, custom Proguard rules file
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("AceKeystore")
+            if (hasSigning) signingConfig = signingConfigs.getByName("AceKeystore")
         }
         getByName("debug") {
-            signingConfig = signingConfigs.getByName("AceKeystore")
+            if (hasSigning) signingConfig = signingConfigs.getByName("AceKeystore")
         }
     }
     compileOptions {
@@ -86,24 +99,14 @@ android {
             useLegacyPackaging = true
         }
     }
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "x86_64", "armeabi-v7a")
-            isUniversalApk = true
-        }
-    }
     namespace = "io.github.acedroidx.frp"
 }
-
-val appVersionName = "1.5.9"
 
 androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
             val abiFilter = output.filters.find { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }
-            val abi = abiFilter?.identifier ?: "universal"
+            val abi = abiFilter?.identifier ?: "arm64-v8a"
             output.outputFileName.set("FRP_${abi}_${appVersionName}.apk")
         }
     }
@@ -149,3 +152,62 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }
+
+// ===== frp 官方二进制同步 =====
+// 版本锁定在 gradle.properties 的 frpVersion；构建前自动下载官方 android_arm64 二进制
+val frpCacheDir = rootProject.layout.projectDirectory.dir("gradle/.frp-cache").asFile
+val frpTarName = "frp_${frpVersion}_android_arm64.tar.gz"
+val frpTarFile = File(frpCacheDir, frpTarName)
+val frpExtractDir = File(layout.buildDirectory.get().asFile, "frp-extract/$frpVersion")
+val jniLibsArm64 = File(layout.projectDirectory.asFile, "src/main/jniLibs/arm64-v8a")
+
+val downloadFrp = tasks.register("downloadFrp") {
+    group = "frp"
+    description = "下载锁定版本的 frp 官方二进制到本地缓存"
+    outputs.file(frpTarFile)
+    outputs.upToDateWhen { frpTarFile.exists() }
+    doLast {
+        frpTarFile.parentFile.mkdirs()
+        val url =
+            "https://github.com/fatedier/frp/releases/download/v$frpVersion/$frpTarName"
+        logger.lifecycle("Downloading frp v$frpVersion: $url")
+        val part = File(frpTarFile.parentFile, "$frpTarName.part")
+        URL(url).openStream().use { input ->
+            part.outputStream().use { output -> input.copyTo(output) }
+        }
+        if (!part.renameTo(frpTarFile)) error("下载缓存重命名失败: $part")
+    }
+}
+
+val extractFrp = tasks.register<Copy>("extractFrp") {
+    group = "frp"
+    description = "解压 frpc/frps"
+    dependsOn(downloadFrp)
+    from(tarTree(resources.gzip(frpTarFile)))
+    include("**/frpc", "**/frps")
+    into(frpExtractDir)
+}
+
+val installFrp = tasks.register("installFrp") {
+    group = "frp"
+    description = "安装 frpc/frps 到 jniLibs"
+    dependsOn(extractFrp)
+    inputs.dir(frpExtractDir)
+    outputs.files(File(jniLibsArm64, "libfrpc.so"), File(jniLibsArm64, "libfrps.so"))
+    doLast {
+        jniLibsArm64.mkdirs()
+        frpExtractDir.walkTopDown()
+            .filter { it.isFile && (it.name == "frpc" || it.name == "frps") }
+            .forEach { src ->
+                val target = File(jniLibsArm64, "lib${src.name}.so")
+                src.copyTo(target, overwrite = true)
+                target.setExecutable(true, false)
+                logger.lifecycle("Installed ${target.name}")
+            }
+        check(File(jniLibsArm64, "libfrpc.so").exists() && File(jniLibsArm64, "libfrps.so").exists()) {
+            "frp 二进制解压结果不完整"
+        }
+    }
+}
+
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(installFrp) }

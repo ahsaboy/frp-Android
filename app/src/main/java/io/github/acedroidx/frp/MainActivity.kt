@@ -171,27 +171,10 @@ class MainActivity : BaseActivity() {
             mService = binder.getService()
             mBound = true
 
-            // 获取frp版本
-            lifecycleScope.launch {
-                try {
-                    val frpcVersion = mService.getFrpVersion(FrpType.FRPC)
-                    val frpsVersion = mService.getFrpVersion(FrpType.FRPS)
-                    val version = if (frpcVersion == frpsVersion) {
-                        frpcVersion
-                    } else {
-                        "frpc:$frpcVersion/frps:$frpsVersion"
-                    }
-                    frpVersion.value = version
-                    // 存储到 SharedPreferences
-                    preferences.edit {
-                        putString(PreferencesKey.FRP_VERSION, version)
-                    }
-                } catch (_: Exception) {
-                    frpVersion.value = "Error"
-                    preferences.edit {
-                        putString(PreferencesKey.FRP_VERSION, "Error")
-                    }
-                }
+            // frp 版本在构建时由 Gradle 同步到 BuildConfig
+            frpVersion.value = BuildConfig.FrpVersion
+            preferences.edit {
+                putString(PreferencesKey.FRP_VERSION, BuildConfig.FrpVersion)
             }
 
             processThreadsCollectJob?.cancel()

@@ -90,3 +90,7 @@ keystore.properties
 *.tar.gz
 baselineProfiles/
 TASKER_PLUGIN_DEVELOPMENT_GUIDE.md
+
+# frp 官方二进制由构建自动下载
+gradle/.frp-cache/
+app/src/main/jniLibs/

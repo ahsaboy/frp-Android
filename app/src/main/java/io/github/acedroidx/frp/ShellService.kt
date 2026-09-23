@@ -42,8 +42,6 @@ class ShellService : LifecycleService() {
     private val _processThreads = MutableStateFlow(mutableMapOf<FrpConfig, ShellThread>())
     val processThreads = _processThreads.asStateFlow()
 
-    private val _logText = MutableStateFlow("")
-
     // 为每个配置创建一个日志流
     private val _configLogs = MutableStateFlow(mutableMapOf<FrpConfig, String>())
     val configLogs = _configLogs.asStateFlow()
@@ -82,40 +80,6 @@ class ShellService : LifecycleService() {
                 }
             }
             logContent
-        }
-    }
-
-    fun getFrpVersion(type: FrpType): String {
-        return try {
-            val ainfo = packageManager.getApplicationInfo(
-                packageName, PackageManager.GET_SHARED_LIBRARY_FILES
-            )
-            val command = listOf("${ainfo.nativeLibraryDir}/${type.getLibName()}", "-v")
-
-            val processBuilder = ProcessBuilder(command)
-            val process = processBuilder.start()
-
-            val output = process.inputStream.bufferedReader().readText().trim()
-            val errorOutput = process.errorStream.bufferedReader().readText().trim()
-
-            process.waitFor()
-
-            // frp版本信息通常在stdout或stderr中，优先使用stdout
-            if (output.isNotEmpty()) {
-                // 提取版本号，通常格式为 "frpc version x.x.x" 或类似格式
-                val versionRegex = Regex("""(\d+\.\d+\.\d+)""")
-                val match = versionRegex.find(output)
-                match?.value ?: output.take(20) // 如果找不到版本号，返回前20个字符
-            } else if (errorOutput.isNotEmpty()) {
-                val versionRegex = Regex("""(\d+\.\d+\.\d+)""")
-                val match = versionRegex.find(errorOutput)
-                match?.value ?: errorOutput.take(20)
-            } else {
-                "Unknown"
-            }
-        } catch (e: Exception) {
-            Log.e("adx", "Failed to get frp version: ${e.message}")
-            "Error"
         }
     }
 
@@ -241,11 +205,7 @@ class ShellService : LifecycleService() {
             clearDesiredRunningConfigs()
 
             // 停止前台服务
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-            } else {
-                @Suppress("DEPRECATION") stopForeground(true)
-            }
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
 
             Toast.makeText(this, "已停止所有配置", Toast.LENGTH_SHORT).show()
@@ -285,11 +245,7 @@ class ShellService : LifecycleService() {
                         .show()
                     startForeground(1, showNotification())
                 } else {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        stopForeground(STOP_FOREGROUND_REMOVE)
-                    } else {
-                        @Suppress("DEPRECATION") stopForeground(true)
-                    }
+                    stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 }
             }
@@ -303,11 +259,7 @@ class ShellService : LifecycleService() {
                     startForeground(1, showNotification())
                 }
                 if (_processThreads.value.isEmpty()) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        stopForeground(STOP_FOREGROUND_REMOVE)
-                    } else {
-                        @Suppress("DEPRECATION") stopForeground(true)
-                    }
+                    stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                     Toast.makeText(this, getString(R.string.service_stop_toast), Toast.LENGTH_SHORT)
                         .show()
@@ -357,14 +309,12 @@ class ShellService : LifecycleService() {
             if (showToast) {
                 Toast.makeText(this, e.message, Toast.LENGTH_LONG).show()
             }
-            stopSelf()
             return false
         }
     }
 
     private fun stopFrp(config: FrpConfig) {
         val thread = _processThreads.value[config]
-//        thread?.interrupt()
         thread?.stopProcess()
         _processThreads.update {
             it.toMutableMap().apply { remove(config) }
@@ -381,7 +331,6 @@ class ShellService : LifecycleService() {
         }
         if (!_processThreads.value.isEmpty()) {
             _processThreads.value.forEach {
-//                it.value.interrupt()
                 it.value.stopProcess()
             }
             _processThreads.update { it.clear();it }
@@ -399,7 +348,6 @@ class ShellService : LifecycleService() {
             command = command,
             dir = dir,
             outputCallback = { logLine ->
-                _logText.value += logLine + "\n"
                 appendToConfigLog(config, logLine)
             },
             onExitCallback = { exitCode, manuallyStopped ->
@@ -504,11 +452,7 @@ class ShellService : LifecycleService() {
             // 没有活动线程但仍有期望运行项，保持前台服务并等待自动重启
             startForeground(1, showNotification())
         } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-            } else {
-                @Suppress("DEPRECATION") stopForeground(true)
-            }
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
     }
@@ -628,7 +572,6 @@ class ShellService : LifecycleService() {
         val pendingIntent: PendingIntent =
             Intent(this, MainActivity::class.java).let { notificationIntent ->
                 // 检查是否需要从最近任务中排除
-                val preferences = getSharedPreferences("data", MODE_PRIVATE)
                 val excludeFromRecents = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
                 if (excludeFromRecents) {
                     notificationIntent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
@@ -654,7 +597,6 @@ class ShellService : LifecycleService() {
                     R.string.frp_notification_content, _processThreads.value.size
                 )
             )
-            //.setTicker("test")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)

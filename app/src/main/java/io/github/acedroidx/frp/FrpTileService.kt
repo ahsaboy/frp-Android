@@ -11,9 +11,6 @@ import android.os.IBinder
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import android.util.Log
-import androidx.annotation.RequiresApi
-
-@RequiresApi(Build.VERSION_CODES.N)
 class FrpTileService : TileService() {
 
     private var mService: ShellService? = null

@@ -64,12 +64,7 @@ open class BaseActivity : AppCompatActivity() {
             "zh" -> Locale.SIMPLIFIED_CHINESE
             "en" -> Locale.ENGLISH
             else -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    context.resources.configuration.locales[0]
-                } else {
-                    @Suppress("DEPRECATION")
-                    context.resources.configuration.locale
-                }
+                context.resources.configuration.locales[0]
             }
         }
         Locale.setDefault(locale)
