@@ -29,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -45,25 +44,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.SpinnerEntry
-import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.UploadCloud
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.FileInputStream
 import java.util.zip.ZipEntry
@@ -142,7 +141,7 @@ class SettingsActivity : BaseActivity() {
                         navigationIcon = {
                             IconButton(onClick = { finish() }) {
                                 Icon(
-                                    painter = painterResource(id = R.drawable.ic_arrow_back_24dp),
+                                    imageVector = MiuixIcons.Back,
                                     contentDescription = stringResource(R.string.back)
                                 )
                             }
@@ -396,12 +395,10 @@ class SettingsActivity : BaseActivity() {
         checked: Boolean,
         onCheckedChange: (Boolean) -> Unit
     ) {
-        BasicComponent(
+        SwitchPreference(
             title = title,
-            onClick = { onCheckedChange(!checked) },
-            endActions = {
-                Switch(checked = checked, onCheckedChange = onCheckedChange)
-            },
+            checked = checked,
+            onCheckedChange = onCheckedChange,
         )
     }
 
@@ -412,48 +409,24 @@ class SettingsActivity : BaseActivity() {
         configs: List<FrpConfig>,
         onConfigChange: (FrpConfig?) -> Unit
     ) {
-        var expanded by remember { mutableStateOf(false) }
-
         val displayValue = currentConfig?.let {
             "${it.type.typeName}: ${it.fileName.removeSuffix(".toml")}"
         } ?: stringResource(R.string.quick_tile_not_selected)
 
-        val totalItems = 1 + configs.size
+        val options = listOf(stringResource(R.string.quick_tile_not_selected)) + configs.map {
+            "${it.type.typeName}: ${it.fileName.removeSuffix(".toml")}"
+        }
+        val selectedIndex = currentConfig?.let { config ->
+            configs.indexOf(config).takeIf { it >= 0 }?.plus(1)
+        } ?: 0
 
-        BasicComponent(
+        OverlayDropdownPreference(
             title = title,
             summary = displayValue,
-            onClick = { expanded = true },
-            endActions = {
-                OverlayListPopup(
-                    show = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    ListPopupColumn {
-                        DropdownImpl(
-                            text = stringResource(R.string.quick_tile_not_selected),
-                            optionSize = totalItems,
-                            isSelected = currentConfig == null,
-                            index = 0,
-                            onSelectedIndexChange = {
-                                onConfigChange(null)
-                                expanded = false
-                            }
-                        )
-                        configs.forEachIndexed { index, config ->
-                            DropdownImpl(
-                                text = "${config.type.typeName}: ${config.fileName.removeSuffix(".toml")}",
-                                optionSize = totalItems,
-                                isSelected = currentConfig == config,
-                                index = index + 1,
-                                onSelectedIndexChange = {
-                                    onConfigChange(config)
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
-                }
+            items = options,
+            selectedIndex = selectedIndex.coerceIn(options.indices),
+            onSelectedIndexChange = { index ->
+                onConfigChange(configs.getOrNull(index - 1))
             },
         )
     }
@@ -531,7 +504,7 @@ class SettingsActivity : BaseActivity() {
                     style = MiuixTheme.textStyles.body1
                 )
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_export),
+                    imageVector = MiuixIcons.UploadCloud,
                     contentDescription = null,
                     modifier = Modifier.padding(start = 8.dp)
                 )
