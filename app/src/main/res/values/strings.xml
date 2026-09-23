@@ -2,6 +2,24 @@
     <string name="app_name" translatable="false">FRP</string>
     <string name="frp_for_android" translatable="false">frp for Android</string>
     <string name="settings_title">Settings</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_frpc">frpc</string>
+    <string name="nav_frps">frps</string>
+    <string name="nav_form_mode">Form</string>
+    <string name="nav_text_mode">Text</string>
+    <string name="home_status_running">FRP is running</string>
+    <string name="home_status_ready">FRP is ready</string>
+    <string name="home_status_disconnected">Service unavailable</string>
+    <string name="home_running_count">Running</string>
+    <string name="home_stability_title">Startup &amp; stability</string>
+    <string name="home_app_version_label">App version</string>
+    <string name="home_enabled">Enabled</string>
+    <string name="home_disabled">Disabled</string>
+    <string name="home_attention">Needs attention</string>
+    <string name="home_total_configs">Total</string>
+    <string name="home_environment_title">Environment</string>
+    <string name="home_frp_version">FRP version</string>
+    <string name="home_android_version">Android version</string>
     <string name="back">Back</string>
     <string name="language_title">Language</string>
     <string name="language_system">Follow System</string>

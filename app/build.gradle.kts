@@ -23,7 +23,7 @@ val hasSigning = (!envStoreFile.isNullOrEmpty()) ||
 val frpVersion: String = (project.findProperty("frpVersion") as? String)
     ?: error("gradle.properties 中缺少 frpVersion")
 
-val appVersionName = "1.5.11"
+val appVersionName = "1.5.12"
 
 android {
     androidResources {
@@ -55,7 +55,7 @@ android {
         minSdk = 24
         targetSdk = 37
         compileSdk = 37
-        versionCode = 28
+        versionCode = 29
         versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -173,6 +173,10 @@ val downloadFrp = tasks.register("downloadFrp") {
     outputs.file(tarFile)
     outputs.upToDateWhen { tarFile.exists() }
     doLast {
+        if (tarFile.exists()) {
+            logger.lifecycle("Using cached frp archive: $tarFile")
+            return@doLast
+        }
         tarFile.parentFile.mkdirs()
         val url =
             "https://github.com/fatedier/frp/releases/download/v$version/$tarName"

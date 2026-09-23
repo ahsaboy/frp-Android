@@ -11,14 +11,10 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,7 +27,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.acedroidx.frp.FrpType
 import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.ConfigFormViewModel
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -87,21 +82,6 @@ fun ConfigFormScreen(
                         )
                     }
                 },
-                actions = {
-                    TextButton(
-                        text = stringResource(
-                            if (isFormMode) {
-                                R.string.config_form_text_mode
-                            } else {
-                                R.string.config_form_form_mode
-                            }
-                        ),
-                        onClick = {
-                            if (isFormMode) viewModel.switchToTextMode()
-                            else viewModel.switchToFormMode()
-                        },
-                    )
-                },
             )
         },
         bottomBar = {
@@ -136,6 +116,18 @@ fun ConfigFormScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            TabRow(
+                tabs = listOf(
+                    stringResource(R.string.nav_form_mode),
+                    stringResource(R.string.nav_text_mode),
+                ),
+                selectedTabIndex = if (isFormMode) 0 else 1,
+                onTabSelected = { index ->
+                    if (index == 0 && !isFormMode) viewModel.switchToFormMode()
+                    if (index == 1 && isFormMode) viewModel.switchToTextMode()
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            )
             if (isFormMode) {
                 FormModeContent(
                     viewModel = viewModel,
@@ -184,67 +176,45 @@ private fun FormModeContent(
             emptyList()
         }
 
-    val coroutineScope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { tabs.size })
-
-    LaunchedEffect(currentSection) {
-        if (pagerState.currentPage != currentSection) {
-            pagerState.animateScrollToPage(currentSection)
-        }
-    }
-
-    LaunchedEffect(pagerState.currentPage) {
-        if (viewModel.currentSection.value != pagerState.currentPage) {
-            viewModel.setSection(pagerState.currentPage)
-        }
-    }
+    val selectedSection = currentSection.coerceIn(0, tabs.lastIndex)
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(
             tabs = tabs,
-            selectedTabIndex = currentSection.coerceIn(0, tabs.size - 1),
-            onTabSelected = { index ->
-                viewModel.setSection(index)
-                coroutineScope.launch { pagerState.animateScrollToPage(index) }
-            },
+            selectedTabIndex = selectedSection,
+            onTabSelected = viewModel::setSection,
             minWidth = 110.dp,
             maxWidth = 150.dp,
         )
 
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize(),
-        ) { page ->
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                if (page < schema.sections.size) {
-                    val section = schema.sections[page]
-                    if (page == 0) {
-                        item(key = "_management") {
-                            ManagementSectionCard(
-                                configFileName = configFileName,
-                                isAutoStart = isAutoStart,
-                                onAutoStartChange = onAutoStartChange,
-                                isAutoStartOnAppLaunch = isAutoStartOnAppLaunch,
-                                onAutoStartOnAppLaunchChange = onAutoStartOnAppLaunchChange,
-                                onRename = onRename,
-                            )
-                        }
-                    }
-                    item(key = section.id) {
-                        SectionCard(
-                            section = section,
-                            formData = viewModel.formData,
-                            schemaFields = allSchemaFields,
-                            expanded = expandedSections.contains(section.id),
-                            onToggle = { viewModel.toggleSection(section.id) },
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            if (selectedSection < schema.sections.size) {
+                val section = schema.sections[selectedSection]
+                if (selectedSection == 0) {
+                    item(key = "_management") {
+                        ManagementSectionCard(
+                            configFileName = configFileName,
+                            isAutoStart = isAutoStart,
+                            onAutoStartChange = onAutoStartChange,
+                            isAutoStartOnAppLaunch = isAutoStartOnAppLaunch,
+                            onAutoStartOnAppLaunchChange = onAutoStartOnAppLaunchChange,
+                            onRename = onRename,
                         )
                     }
-                } else if (configType == FrpType.FRPC) {
-                    val sectionOffset = schema.sections.size
-                    when (page - sectionOffset) {
-                        0 -> item { ProxyListEditor(viewModel) }
-                        1 -> item { VisitorListEditor(viewModel) }
-                    }
+                }
+                item(key = section.id) {
+                    SectionCard(
+                        section = section,
+                        formData = viewModel.formData,
+                        schemaFields = allSchemaFields,
+                        expanded = expandedSections.contains(section.id),
+                        onToggle = { viewModel.toggleSection(section.id) },
+                    )
+                }
+            } else if (configType == FrpType.FRPC) {
+                when (selectedSection - schema.sections.size) {
+                    0 -> item { ProxyListEditor(viewModel) }
+                    1 -> item { VisitorListEditor(viewModel) }
                 }
             }
         }
@@ -260,14 +230,21 @@ private fun TextModeContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp),
     ) {
-        TextField(
-            value = text,
-            onValueChange = onTextChange,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
-        )
+        Card(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+        ) {
+            TextField(
+                value = text,
+                onValueChange = onTextChange,
+                modifier = Modifier.fillMaxSize().padding(8.dp),
+                textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+            )
+        }
         if (hasParseError) {
             Text(
                 text = stringResource(R.string.config_form_invalid_toml),

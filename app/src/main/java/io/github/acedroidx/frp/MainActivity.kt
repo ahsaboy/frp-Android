@@ -2,6 +2,7 @@ package io.github.acedroidx.frp
 
 import android.Manifest
 import android.app.NotificationChannel
+import android.app.ActivityManager
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Intent
@@ -12,37 +13,60 @@ import android.net.Uri
 import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.os.IBinder
 import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.edit
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +85,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.acedroidx.frp.config.TomlParserUtil
 import io.github.acedroidx.frp.ui.theme.AppThemeMode
+import io.github.acedroidx.frp.ui.theme.putAppThemeMode
+import io.github.acedroidx.frp.ui.theme.putUseMonet
 import io.github.acedroidx.frp.ui.theme.readAppThemeMode
 import io.github.acedroidx.frp.ui.theme.readUseMonet
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,23 +96,29 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SearchBar
-import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.NavigationBar
+import top.yukonga.miuix.kmp.basic.NavigationBarItem
+import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult
@@ -100,12 +132,29 @@ import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.ExpandLess
 import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.icon.extended.Home
+import top.yukonga.miuix.kmp.icon.extended.Link
+import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 
 class MainActivity : BaseActivity() {
+    companion object {
+        private const val DEFAULT_LOG_MAX_LINES = 20
+        private const val MIN_LOG_MAX_LINES = 1
+        private const val MAX_LOG_MAX_LINES = 500
+        const val EXTRA_SELECTED_DESTINATION = "selected_destination"
+        const val DESTINATION_HOME = 0
+        const val DESTINATION_FRPC = 1
+        const val DESTINATION_FRPS = 2
+        const val DESTINATION_SETTINGS = 3
+    }
+
     private val isStartup = MutableStateFlow(false)
     private val frpcConfigList = MutableStateFlow<List<FrpConfig>>(emptyList())
     private val frpsConfigList = MutableStateFlow<List<FrpConfig>>(emptyList())
@@ -115,17 +164,38 @@ class MainActivity : BaseActivity() {
     private val useMonet = MutableStateFlow(false)
     private val permissionGranted = MutableStateFlow(true)
     private val logWrapEnabled = MutableStateFlow(true)
+    private val logMaxLines = MutableStateFlow(DEFAULT_LOG_MAX_LINES)
+    private val keepAliveEnabled = MutableStateFlow(false)
+    private val appLanguage = MutableStateFlow("system")
+    private val allowTasker = MutableStateFlow(true)
+    private val excludeFromRecents = MutableStateFlow(false)
+    private val batteryOptimizationWhitelisted = MutableStateFlow(false)
+    private val quickTileConfig = MutableStateFlow<FrpConfig?>(null)
+    private val exportStatusMessage = MutableStateFlow<String?>(null)
+    private val allConfigs = MutableStateFlow<List<FrpConfig>>(emptyList())
 
     private lateinit var preferences: SharedPreferences
 
     private lateinit var mService: ShellService
     private var mBound: Boolean = false
+    private val serviceConnected = mutableStateOf(false)
     private var processThreadsCollectJob: Job? = null
 
+    private val selectedDestinationState = mutableIntStateOf(DESTINATION_HOME)
     private val showImportTypeDialog = mutableStateOf(false)
     private var pendingImportFile: Uri? = null
     private var appliedLanguagePreference: String = "system"
     private val configRefreshCounter = mutableStateOf(0)
+    private val showExportDialog = mutableStateOf(false)
+    private val showLogMaxLinesDialog = mutableStateOf(false)
+
+    private val exportDocumentLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri: Uri? ->
+        uri?.let {
+            lifecycleScope.launch { exportConfigsToUri(it) }
+        }
+    }
 
     // 权限请求启动器
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -168,6 +238,7 @@ class MainActivity : BaseActivity() {
             val binder = service as ShellService.LocalBinder
             mService = binder.getService()
             mBound = true
+            serviceConnected.value = true
 
             // frp 版本在构建时由 Gradle 同步到 BuildConfig
             frpVersion.value = BuildConfig.FrpVersion
@@ -190,6 +261,7 @@ class MainActivity : BaseActivity() {
             processThreadsCollectJob?.cancel()
             processThreadsCollectJob = null
             mBound = false
+            serviceConnected.value = false
         }
     }
 
@@ -208,16 +280,17 @@ class MainActivity : BaseActivity() {
         }
 
         preferences = getSharedPreferences("data", MODE_PRIVATE)
+        selectedDestinationState.intValue = intent.getIntExtra(EXTRA_SELECTED_DESTINATION, DESTINATION_HOME)
 
         // 应用"最近任务中排除"设置
-        val excludeFromRecents = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
+        val excludeFromRecentsSetting = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             try {
                 val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
                 val appTasks = am.appTasks
                 if (appTasks.isNotEmpty()) {
                     for (task in appTasks) {
-                        task.setExcludeFromRecents(excludeFromRecents)
+                        task.setExcludeFromRecents(excludeFromRecentsSetting)
                     }
                 }
             } catch (e: Exception) {
@@ -227,62 +300,193 @@ class MainActivity : BaseActivity() {
 
         isStartup.value = preferences.getBoolean(PreferencesKey.AUTO_START, false)
         logWrapEnabled.value = preferences.getBoolean(PreferencesKey.LOG_WRAP_ENABLED, true)
+        logMaxLines.value = sanitizeLogMaxLines(
+            preferences.getInt(PreferencesKey.LOG_MAX_LINES, DEFAULT_LOG_MAX_LINES)
+        )
+        keepAliveEnabled.value = preferences.getBoolean(PreferencesKey.KEEP_ALIVE_ENABLED, false)
+        appLanguage.value = preferences.getString(PreferencesKey.APP_LANGUAGE, "system") ?: "system"
+        allowTasker.value = preferences.getBoolean(PreferencesKey.ALLOW_TASKER, true)
+        this.excludeFromRecents.value = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
         frpVersion.value = preferences.getString(PreferencesKey.FRP_VERSION, "Loading...") ?: "Loading..."
         themeMode.value = preferences.readAppThemeMode()
         useMonet.value = preferences.readUseMonet()
-        appliedLanguagePreference = preferences.getString(PreferencesKey.APP_LANGUAGE, "system") ?: "system"
+        appliedLanguagePreference = appLanguage.value
 
         checkConfig()
         updateConfigList()
+        loadSettingsConfigList()
+        loadQuickTileConfig()
+        refreshBatteryOptimizationStatus()
         createBGNotificationChannel()
         checkAndRequestPermissions()
 
         applyEdgeToEdge()
         setContent {
             FrpThemedContent(themeMode = themeMode, useMonet = useMonet) {
-            val openDialog = remember { mutableStateOf(false) }
-            val snackbarHostState = remember { SnackbarHostState() }
-            val permissionGranted by permissionGranted.collectAsStateWithLifecycle(true)
+                val openDialog = remember { mutableStateOf(false) }
+                val snackbarHostState = remember { SnackbarHostState() }
+                val permissionGranted by permissionGranted.collectAsStateWithLifecycle(true)
+                val selectedDestination = selectedDestinationState.intValue
+                val currentIsStartup by isStartup.collectAsStateWithLifecycle(false)
+                val currentLogWrapEnabled by logWrapEnabled.collectAsStateWithLifecycle(true)
+                val currentLogMaxLines by logMaxLines.collectAsStateWithLifecycle(DEFAULT_LOG_MAX_LINES)
+                val currentKeepAliveEnabled by keepAliveEnabled.collectAsStateWithLifecycle(false)
+                val currentAppLanguage by appLanguage.collectAsStateWithLifecycle("system")
+                val currentThemeMode by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
+                val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
+                val currentAllowTasker by allowTasker.collectAsStateWithLifecycle(true)
+                val currentExcludeFromRecents by excludeFromRecents.collectAsStateWithLifecycle(false)
+                val currentBatteryOptimization by batteryOptimizationWhitelisted.collectAsStateWithLifecycle(false)
+                val currentQuickTileConfig by quickTileConfig.collectAsStateWithLifecycle(null)
+                val currentConfigs by allConfigs.collectAsStateWithLifecycle(emptyList())
+                val currentExportStatus by exportStatusMessage.collectAsStateWithLifecycle(null)
+                val scrollBehavior = MiuixScrollBehavior()
 
+                BackHandler(enabled = selectedDestination != DESTINATION_HOME) {
+                    selectedDestinationState.intValue = DESTINATION_HOME
+                }
 
                 Scaffold(
                     topBar = {
-                        SmallTopAppBar(
-                            title = stringResource(R.string.frp_for_android),
-                            actions = {
-                                IconButton(onClick = {
-                                    startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
-                                }) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Settings,
-                                        contentDescription = stringResource(R.string.settings_content_desc)
-                                    )
-                                }
-                            }
+                        TopAppBar(
+                            title = when (selectedDestination) {
+                                DESTINATION_FRPC -> stringResource(R.string.nav_frpc)
+                                DESTINATION_FRPS -> stringResource(R.string.nav_frps)
+                                DESTINATION_SETTINGS -> stringResource(R.string.settings_title)
+                                else -> stringResource(R.string.frp_for_android)
+                            },
+                            scrollBehavior = scrollBehavior,
                         )
                     },
+                    bottomBar = {
+                        NavigationBar {
+                            listOf(
+                                NavigationItem(stringResource(R.string.nav_home), MiuixIcons.Home),
+                                NavigationItem(stringResource(R.string.nav_frpc), MiuixIcons.Link),
+                                NavigationItem(stringResource(R.string.nav_frps), MiuixIcons.CloudFill),
+                                NavigationItem(stringResource(R.string.settings_title), MiuixIcons.Settings),
+                            ).forEachIndexed { index, item ->
+                                NavigationBarItem(
+                                    selected = selectedDestination == index,
+                                    onClick = { selectedDestinationState.intValue = index },
+                                    icon = item.icon,
+                                    label = item.label,
+                                )
+                            }
+                        }
+                    },
                     floatingActionButton = {
-                        FloatingActionButton(
-                            onClick = { openDialog.value = true }
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Add,
-                                contentDescription = stringResource(R.string.addConfigButton)
-                            )
+                        if (selectedDestination != DESTINATION_SETTINGS) {
+                            FloatingActionButton(
+                                onClick = {
+                                    when (selectedDestination) {
+                                        DESTINATION_FRPC -> startConfigActivity(FrpType.FRPC)
+                                        DESTINATION_FRPS -> startConfigActivity(FrpType.FRPS)
+                                        else -> openDialog.value = true
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = MiuixIcons.Add,
+                                    contentDescription = stringResource(R.string.addConfigButton)
+                                )
+                            }
                         }
                     },
                     snackbarHost = {
                         SnackbarHost(state = snackbarHostState)
                     }
                 ) { contentPadding ->
-                    // Screen content
-                    MainContent(modifier = Modifier.padding(contentPadding))
-
-                    if (openDialog.value) {
-                        CreateConfigDialog { openDialog.value = false }
+                    AnimatedContent(
+                        targetState = selectedDestination,
+                        modifier = Modifier.padding(contentPadding).fillMaxSize(),
+                        transitionSpec = {
+                            val forward = targetState > initialState
+                            val enterOffset: (Int) -> Int = { width -> if (forward) width else -width }
+                            val exitOffset: (Int) -> Int = { width -> if (forward) -width else width }
+                            (slideInHorizontally(
+                                animationSpec = tween(280),
+                                initialOffsetX = enterOffset,
+                            ) + fadeIn(animationSpec = tween(180))) togetherWith
+                                (slideOutHorizontally(
+                                    animationSpec = tween(280),
+                                    targetOffsetX = exitOffset,
+                                ) + fadeOut(animationSpec = tween(180)))
+                        },
+                        label = "main_destination_transition",
+                    ) { destination ->
+                        val pageModifier = Modifier.fillMaxSize()
+                        when (destination) {
+                            DESTINATION_FRPC -> ConfigListContent(
+                                configType = FrpType.FRPC,
+                                modifier = pageModifier,
+                                scrollConnection = scrollBehavior.nestedScrollConnection,
+                            )
+                            DESTINATION_FRPS -> ConfigListContent(
+                                configType = FrpType.FRPS,
+                                modifier = pageModifier,
+                                scrollConnection = scrollBehavior.nestedScrollConnection,
+                            )
+                            DESTINATION_SETTINGS -> SettingsScreen(
+                                isStartup = currentIsStartup,
+                                logWrapEnabled = currentLogWrapEnabled,
+                                logMaxLines = currentLogMaxLines,
+                                keepAliveEnabled = currentKeepAliveEnabled,
+                                appLanguage = currentAppLanguage,
+                                themeMode = currentThemeMode,
+                                useMonet = currentUseMonet,
+                                allowTasker = currentAllowTasker,
+                                excludeFromRecents = currentExcludeFromRecents,
+                                batteryOptimizationWhitelisted = currentBatteryOptimization,
+                                quickTileConfig = currentQuickTileConfig,
+                                configs = currentConfigs,
+                                exportStatusMessage = currentExportStatus,
+                                showExportDialog = showExportDialog.value,
+                                showLogMaxLinesDialog = showLogMaxLinesDialog.value,
+                                onLanguageChange = ::updateLanguage,
+                                onThemeChange = ::updateTheme,
+                                onUseMonetChange = ::updateUseMonet,
+                                onStartupChange = ::updateStartup,
+                                onKeepAliveChange = ::updateKeepAlive,
+                                onBatteryOptimizationClick = {
+                                    startActivity(Intent(this@MainActivity, BatteryOptimizationGuideActivity::class.java))
+                                },
+                                onLogWrapChange = ::updateLogWrap,
+                                onLogMaxLinesClick = { showLogMaxLinesDialog.value = true },
+                                onQuickTileConfigChange = ::updateQuickTileConfig,
+                                onTaskerChange = ::updateTasker,
+                                onExcludeFromRecentsChange = ::updateExcludeFromRecents,
+                                onExportClick = { showExportDialog.value = true },
+                                onAboutClick = {
+                                    startActivity(Intent(this@MainActivity, AboutActivity::class.java))
+                                },
+                                onExportDialogDismiss = { showExportDialog.value = false },
+                                onExportConfirm = ::launchExportDocument,
+                                onLogMaxLinesDialogDismiss = { showLogMaxLinesDialog.value = false },
+                                onLogMaxLinesConfirm = { value ->
+                                    val sanitized = sanitizeLogMaxLines(value)
+                                    preferences.edit().putInt(PreferencesKey.LOG_MAX_LINES, sanitized).apply()
+                                    logMaxLines.value = sanitized
+                                },
+                                modifier = pageModifier
+                                    .verticalScroll(rememberScrollState())
+                                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+                                    .scrollEndHaptic()
+                                    .overScrollVertical(),
+                            )
+                            else -> MainContent(
+                                modifier = pageModifier,
+                                scrollConnection = scrollBehavior.nestedScrollConnection,
+                            )
+                        }
                     }
 
-                    // 导入类型选择对话框
+                    CreateConfigDialog(
+                        show = openDialog.value,
+                        onDismissFinished = { openDialog.value = false },
+                        onClose = { openDialog.value = false },
+                    )
+
                     if (showImportTypeDialog.value) {
                         ImportTypeDialog { showImportTypeDialog.value = false }
                     }
@@ -319,105 +523,278 @@ class MainActivity : BaseActivity() {
 
     @Preview(showBackground = true)
     @Composable
-    fun MainContent(modifier: Modifier = Modifier) {
+    fun MainContent(
+        modifier: Modifier = Modifier,
+        scrollConnection: NestedScrollConnection? = null,
+    ) {
         val frpcConfigs by frpcConfigList.collectAsStateWithLifecycle(emptyList())
         val frpsConfigs by frpsConfigList.collectAsStateWithLifecycle(emptyList())
-        var query by remember { mutableStateOf("") }
-        var searchExpanded by remember { mutableStateOf(false) }
-        var isRefreshing by remember { mutableStateOf(false) }
-        val refreshScope = rememberCoroutineScope()
-        val pullToRefreshState = rememberPullToRefreshState()
+        val runningConfigs by runningConfigList.collectAsStateWithLifecycle(emptyList())
+        val version by frpVersion.collectAsStateWithLifecycle("Loading...")
+        val startup by isStartup.collectAsStateWithLifecycle(false)
+        val keepAlive by keepAliveEnabled.collectAsStateWithLifecycle(false)
+        val notificationAllowed by permissionGranted.collectAsStateWithLifecycle(true)
+        val nestedScrollConnection = scrollConnection ?: MiuixScrollBehavior().nestedScrollConnection
+        LazyColumn(
+            modifier = modifier
+                .fillMaxWidth()
+                .nestedScroll(nestedScrollConnection)
+                .scrollEndHaptic()
+                .overScrollVertical(),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+            overscrollEffect = null,
+        ) {
+            item(key = "dashboard") {
+                HomeDashboard(
+                    totalCount = frpcConfigs.size + frpsConfigs.size,
+                    runningConfigs = runningConfigs,
+                    isServiceConnected = serviceConnected.value,
+                    frpVersion = version,
+                    isStartup = startup,
+                    keepAliveEnabled = keepAlive,
+                    notificationAllowed = notificationAllowed,
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun ConfigListContent(
+        configType: FrpType,
+        modifier: Modifier = Modifier,
+        scrollConnection: NestedScrollConnection,
+    ) {
+        val configs by (if (configType == FrpType.FRPC) frpcConfigList else frpsConfigList)
+            .collectAsStateWithLifecycle(emptyList())
+        val runningConfigs by runningConfigList.collectAsStateWithLifecycle(emptyList())
+        val isLogWrapEnabled by logWrapEnabled.collectAsStateWithLifecycle(true)
+        var query by remember(configType) { mutableStateOf("") }
+        var searchExpanded by remember(configType) { mutableStateOf(false) }
         val normalizedQuery = query.trim()
-        val filter: (FrpConfig) -> Boolean = { config ->
+        val filteredConfigs = configs.filter { config ->
             normalizedQuery.isEmpty() || config.fileName.contains(normalizedQuery, ignoreCase = true)
         }
-        val frpcConfigList = frpcConfigs.filter(filter)
-        val frpsConfigList = frpsConfigs.filter(filter)
 
-        Column(modifier = modifier.fillMaxWidth()) {
-            SearchBar(
-                modifier = Modifier.fillMaxWidth(),
-                expanded = searchExpanded,
-                onExpandedChange = { searchExpanded = it },
-                inputField = {
-                    InputField(
-                        query = query,
-                        onQueryChange = { query = it },
-                        onSearch = { searchExpanded = false },
+        LazyColumn(
+            modifier = modifier
+                .fillMaxWidth()
+                .nestedScroll(scrollConnection)
+                .scrollEndHaptic()
+                .overScrollVertical(),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+            overscrollEffect = null,
+        ) {
+            item(key = "search") {
+                    SearchBar(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                         expanded = searchExpanded,
                         onExpandedChange = { searchExpanded = it },
-                        label = stringResource(R.string.search_config),
-                    )
-                },
-            ) { }
-
-            PullToRefresh(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                isRefreshing = isRefreshing,
-                onRefresh = {
-                    if (!isRefreshing) {
-                        isRefreshing = true
-                        updateConfigList()
-                        refreshScope.launch {
-                            delay(300)
-                            isRefreshing = false
-                        }
-                    }
-                },
-                pullToRefreshState = pullToRefreshState,
-            ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        horizontal = 12.dp,
-                        vertical = 8.dp,
-                    ),
-                ) {
-                    if (frpcConfigList.isEmpty() && frpsConfigList.isEmpty()) {
-                        item(key = "empty") {
-                            Text(
-                                text = if (normalizedQuery.isEmpty()) {
-                                    stringResource(R.string.no_config)
-                                } else {
-                                    stringResource(R.string.no_matching_config)
-                                },
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                                textAlign = TextAlign.Center,
+                        inputField = {
+                            InputField(
+                                query = query,
+                                onQueryChange = { query = it },
+                                onSearch = { searchExpanded = false },
+                                expanded = searchExpanded,
+                                onExpandedChange = { searchExpanded = it },
+                                label = stringResource(R.string.search_config),
                             )
-                        }
+                        },
+                    ) { }
+            }
+            if (filteredConfigs.isEmpty()) {
+                item(key = "empty") {
+                    Text(
+                        text = if (normalizedQuery.isEmpty()) stringResource(R.string.no_config)
+                        else stringResource(R.string.no_matching_config),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            items(
+                items = filteredConfigs,
+                key = { config -> "${config.type.typeName}:${config.fileName}" },
+            ) { config ->
+                FrpConfigItem(config, runningConfigs, isLogWrapEnabled)
+            }
+        }
+    }
+
+    @Composable
+    private fun HomeDashboard(
+        totalCount: Int,
+        runningConfigs: List<FrpConfig>,
+        isServiceConnected: Boolean,
+        frpVersion: String,
+        isStartup: Boolean,
+        keepAliveEnabled: Boolean,
+        notificationAllowed: Boolean,
+    ) {
+        val isActive = isServiceConnected
+        val isDynamicColor = MiuixTheme.isDynamicColor
+        val containerColor = when {
+            !isActive && isDynamicColor -> MiuixTheme.colorScheme.errorContainer
+            !isActive && isSystemInDarkTheme() -> Color(0xFF381A1A)
+            !isActive -> Color(0xFFFAEEEE)
+            isDynamicColor -> MiuixTheme.colorScheme.secondaryContainer
+            isSystemInDarkTheme() -> Color(0xFF1A3825)
+            else -> Color(0xFFDFFAE4)
+        }
+        val contentColor = when {
+            !isActive && isDynamicColor -> MiuixTheme.colorScheme.onErrorContainer
+            isDynamicColor -> MiuixTheme.colorScheme.onSecondaryContainer
+            else -> MiuixTheme.colorScheme.onSurface
+        }
+        val statusTitle = when {
+            !isServiceConnected -> stringResource(R.string.home_status_disconnected)
+            runningConfigs.isNotEmpty() -> stringResource(R.string.home_status_running)
+            else -> stringResource(R.string.home_status_ready)
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.defaultColors(color = containerColor),
+                onClick = {},
+                showIndication = true,
+                pressFeedbackType = PressFeedbackType.Tilt,
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .offset(x = 50.dp, y = 38.dp),
+                        contentAlignment = Alignment.BottomEnd,
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(170.dp),
+                            imageVector = MiuixIcons.CloudFill,
+                            tint = if (isActive) {
+                                if (isDynamicColor) MiuixTheme.colorScheme.primary.copy(alpha = 0.8f)
+                                else Color(0xFF36D167)
+                            } else {
+                                if (isDynamicColor) MiuixTheme.colorScheme.error.copy(alpha = 0.8f)
+                                else Color(0xFFD13636)
+                            },
+                            contentDescription = null,
+                        )
                     }
-                    if (frpcConfigList.isNotEmpty()) {
-                        item(key = "frpc_header") {
-                            Text("frpc", style = MiuixTheme.textStyles.headline1)
-                        }
-                        items(
-                            items = frpcConfigList,
-                            key = { config -> "frpc:${config.fileName}" },
-                        ) { config ->
-                            FrpConfigItem(config)
-                        }
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    ) {
+                        Text(
+                            text = statusTitle,
+                            modifier = Modifier.fillMaxWidth(),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = contentColor,
+                        )
                     }
-                    if (frpsConfigList.isNotEmpty()) {
-                        item(key = "frps_header") {
-                            Text("frps", style = MiuixTheme.textStyles.headline1)
-                        }
-                        items(
-                            items = frpsConfigList,
-                            key = { config -> "frps:${config.fileName}" },
-                        ) { config ->
-                            FrpConfigItem(config)
-                        }
-                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                MiuixStatCard(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    title = stringResource(R.string.home_running_count),
+                    value = runningConfigs.size.toString(),
+                )
+                MiuixStatCard(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    title = stringResource(R.string.home_total_configs),
+                    value = totalCount.toString(),
+                )
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(stringResource(R.string.home_environment_title), style = MiuixTheme.textStyles.headline2)
+                    HomeInfoRow(stringResource(R.string.home_frp_version), frpVersion)
+                    HomeInfoRow(
+                        stringResource(R.string.home_android_version),
+                        "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+                    )
+                    HomeInfoRow(stringResource(R.string.home_app_version_label), BuildConfig.VERSION_NAME)
+                }
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(stringResource(R.string.home_stability_title), style = MiuixTheme.textStyles.headline2)
+                    HomeInfoRow(
+                        stringResource(R.string.auto_start_switch),
+                        stringResource(if (isStartup) R.string.home_enabled else R.string.home_disabled),
+                    )
+                    HomeInfoRow(
+                        stringResource(R.string.keep_alive_switch),
+                        stringResource(if (keepAliveEnabled) R.string.home_enabled else R.string.home_disabled),
+                    )
+                    HomeInfoRow(
+                        stringResource(R.string.permission_notification_title),
+                        stringResource(if (notificationAllowed) R.string.home_enabled else R.string.home_attention),
+                    )
                 }
             }
         }
     }
 
     @Composable
-    fun FrpConfigItem(config: FrpConfig) {
-        val runningConfigList by runningConfigList.collectAsStateWithLifecycle(emptyList())
-        val isLogWrapEnabled by logWrapEnabled.collectAsStateWithLifecycle(true)
-        val isRunning = runningConfigList.contains(config)
+    private fun MiuixStatCard(
+        modifier: Modifier,
+        title: String,
+        value: String,
+    ) {
+        Card(
+            modifier = modifier,
+            insideMargin = PaddingValues(16.dp),
+            showIndication = true,
+            pressFeedbackType = PressFeedbackType.Tilt,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = title,
+                    modifier = Modifier.fillMaxWidth(),
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                )
+                Text(
+                    text = value,
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MiuixTheme.colorScheme.onSurface,
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun HomeInfoRow(label: String, value: String) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(label, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            Text(value, style = MiuixTheme.textStyles.body2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+
+    @Composable
+    fun FrpConfigItem(
+        config: FrpConfig,
+        runningConfigs: List<FrpConfig>,
+        isLogWrapEnabled: Boolean,
+    ) {
+        val isRunning = runningConfigs.contains(config)
         val showLog = remember { mutableStateOf(false) }
         val showDeleteDialog = remember { mutableStateOf(false) }
 
@@ -503,13 +880,6 @@ class MainActivity : BaseActivity() {
                                         }
                                     },
                                     style = MiuixTheme.textStyles.footnote1,
-                                )
-                            }
-                            if (isRunning) {
-                                Text(
-                                    stringResource(R.string.quick_tile_running),
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.primary,
                                 )
                             }
                         }
@@ -718,11 +1088,16 @@ class MainActivity : BaseActivity() {
 
     @Composable
     @Preview(showBackground = true)
-    fun CreateConfigDialog(onClose: () -> Unit = {}) {
+    fun CreateConfigDialog(
+        show: Boolean = true,
+        onDismissFinished: () -> Unit = {},
+        onClose: () -> Unit = {},
+    ) {
         OverlayBottomSheet(
-            show = true,
+            show = show,
             title = stringResource(R.string.create_frp_select),
             onDismissRequest = onClose,
+            onDismissFinished = onDismissFinished,
             content = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -812,6 +1187,150 @@ class MainActivity : BaseActivity() {
         )
     }
 
+    private fun updateLanguage(language: String) {
+        if (language == appLanguage.value) return
+        preferences.edit().putString(PreferencesKey.APP_LANGUAGE, language).apply()
+        appLanguage.value = language
+        recreate()
+    }
+
+    private fun updateTheme(mode: AppThemeMode) {
+        if (mode == themeMode.value) return
+        preferences.edit().putAppThemeMode(mode).apply()
+        AppCompatDelegate.setDefaultNightMode(mode.nightMode)
+        themeMode.value = mode
+        recreate()
+    }
+
+    private fun updateUseMonet(enabled: Boolean) {
+        preferences.edit().putUseMonet(enabled).apply()
+        useMonet.value = enabled
+        recreate()
+    }
+
+    private fun updateStartup(enabled: Boolean) {
+        preferences.edit().putBoolean(PreferencesKey.AUTO_START, enabled).apply()
+        isStartup.value = enabled
+    }
+
+    private fun updateKeepAlive(enabled: Boolean) {
+        preferences.edit {
+            putBoolean(PreferencesKey.KEEP_ALIVE_ENABLED, enabled)
+            if (!enabled) {
+                remove(PreferencesKey.KEEP_ALIVE_FRPC_LIST)
+                remove(PreferencesKey.KEEP_ALIVE_FRPS_LIST)
+            }
+        }
+        keepAliveEnabled.value = enabled
+    }
+
+    private fun updateLogWrap(enabled: Boolean) {
+        preferences.edit().putBoolean(PreferencesKey.LOG_WRAP_ENABLED, enabled).apply()
+        logWrapEnabled.value = enabled
+    }
+
+    private fun updateTasker(enabled: Boolean) {
+        preferences.edit().putBoolean(PreferencesKey.ALLOW_TASKER, enabled).apply()
+        allowTasker.value = enabled
+    }
+
+    private fun updateExcludeFromRecents(enabled: Boolean) {
+        preferences.edit().putBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, enabled).apply()
+        excludeFromRecents.value = enabled
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+                activityManager.appTasks.forEach { task -> task.setExcludeFromRecents(enabled) }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to set excludeFromRecents: ${e.message}")
+            }
+        }
+    }
+
+    private fun updateQuickTileConfig(config: FrpConfig?) {
+        preferences.edit {
+            if (config == null) {
+                remove(PreferencesKey.QUICK_TILE_CONFIG_TYPE)
+                remove(PreferencesKey.QUICK_TILE_CONFIG_NAME)
+            } else {
+                putString(PreferencesKey.QUICK_TILE_CONFIG_TYPE, config.type.name)
+                putString(PreferencesKey.QUICK_TILE_CONFIG_NAME, config.fileName)
+            }
+        }
+        quickTileConfig.value = config
+    }
+
+    private fun loadSettingsConfigList() {
+        allConfigs.value = frpcConfigList.value + frpsConfigList.value
+    }
+
+    private fun loadQuickTileConfig() {
+        val configType = preferences.getString(PreferencesKey.QUICK_TILE_CONFIG_TYPE, null)
+        val configName = preferences.getString(PreferencesKey.QUICK_TILE_CONFIG_NAME, null)
+        quickTileConfig.value = if (configType != null && configName != null) {
+            runCatching {
+                FrpConfig(FrpType.valueOf(configType), configName)
+            }.getOrNull()?.takeIf { it.getFile(this).exists() }
+        } else {
+            null
+        }
+    }
+
+    private fun refreshBatteryOptimizationStatus() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            batteryOptimizationWhitelisted.value = true
+            return
+        }
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        batteryOptimizationWhitelisted.value = powerManager.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    private fun sanitizeLogMaxLines(value: Int): Int {
+        return value.coerceIn(MIN_LOG_MAX_LINES, MAX_LOG_MAX_LINES)
+    }
+
+    private fun launchExportDocument(fileName: String) {
+        val baseName = fileName.trim().ifEmpty { "FRP_config" }
+        val exportName = if (baseName.endsWith(".zip", ignoreCase = true)) baseName else "$baseName.zip"
+        exportDocumentLauncher.launch(exportName)
+    }
+
+    private suspend fun exportConfigsToUri(uri: Uri) = withContext(Dispatchers.IO) {
+        try {
+            val outputStream = contentResolver.openOutputStream(uri)
+                ?: throw IllegalStateException("Failed to open target uri")
+            outputStream.use { stream ->
+                ZipOutputStream(stream).use { zipOut ->
+                    listOf(FrpType.FRPC, FrpType.FRPS).forEach { type ->
+                        type.getDir(this@MainActivity).listFiles()?.forEach { file ->
+                            if (file.isFile && file.name.endsWith(".toml")) {
+                                zipOut.putNextEntry(ZipEntry("${type.typeName.uppercase(Locale.getDefault())}/${file.name}"))
+                                FileInputStream(file).use { input -> input.copyTo(zipOut) }
+                                zipOut.closeEntry()
+                            }
+                        }
+                    }
+                }
+            }
+            withContext(Dispatchers.Main) {
+                exportStatusMessage.value = getString(R.string.export_config_success, uri.toString())
+            }
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                exportStatusMessage.value = getString(
+                    R.string.export_config_failed,
+                    e.message ?: "Unknown error",
+                )
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        selectedDestinationState.intValue = intent.getIntExtra(EXTRA_SELECTED_DESTINATION, DESTINATION_HOME)
+    }
+
     override fun onResume() {
         super.onResume()
         val currentLanguagePreference =
@@ -829,6 +1348,13 @@ class MainActivity : BaseActivity() {
             return
         }
         logWrapEnabled.value = preferences.getBoolean(PreferencesKey.LOG_WRAP_ENABLED, true)
+        logMaxLines.value = sanitizeLogMaxLines(
+            preferences.getInt(PreferencesKey.LOG_MAX_LINES, DEFAULT_LOG_MAX_LINES)
+        )
+        appLanguage.value = preferences.getString(PreferencesKey.APP_LANGUAGE, "system") ?: "system"
+        loadSettingsConfigList()
+        loadQuickTileConfig()
+        refreshBatteryOptimizationStatus()
 
         // 重新应用"最近任务中排除"设置
         val excludeFromRecents = preferences.getBoolean(PreferencesKey.EXCLUDE_FROM_RECENTS, false)
@@ -1003,6 +1529,7 @@ class MainActivity : BaseActivity() {
         frpsConfigList.value = (FrpType.FRPS.getDir(this).list()?.toList() ?: listOf()).map {
             FrpConfig(FrpType.FRPS, it)
         }
+        loadSettingsConfigList()
 
         // 检查自启动列表中是否含有已经删除的配置
         val frpcAutoStartList =

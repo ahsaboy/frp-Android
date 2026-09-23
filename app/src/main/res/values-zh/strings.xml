@@ -2,6 +2,24 @@
 <resources>
     <string name="frp_for_android" translatable="false">frp for Android</string>
     <string name="settings_title">设置</string>
+    <string name="nav_home">主页</string>
+    <string name="nav_frpc">frpc</string>
+    <string name="nav_frps">frps</string>
+    <string name="nav_form_mode">表单</string>
+    <string name="nav_text_mode">文本</string>
+    <string name="home_status_running">FRP 正在运行</string>
+    <string name="home_status_ready">FRP 已就绪</string>
+    <string name="home_status_disconnected">服务不可用</string>
+    <string name="home_running_count">运行中</string>
+    <string name="home_stability_title">启动与稳定性</string>
+    <string name="home_app_version_label">应用版本</string>
+    <string name="home_enabled">已开启</string>
+    <string name="home_disabled">已关闭</string>
+    <string name="home_attention">需要处理</string>
+    <string name="home_total_configs">总配置</string>
+    <string name="home_environment_title">运行环境</string>
+    <string name="home_frp_version">FRP 版本</string>
+    <string name="home_android_version">Android 版本</string>
     <string name="back">返回</string>
     <string name="language_title">语言</string>
     <string name="language_system">跟随系统</string>
