@@ -96,3 +96,5 @@ gradle/.frp-cache/
 app/src/main/jniLibs/
 # 签名库材料，禁止入库
 app/geohot.b64
+# 本地参考用 frp 官方完整示例，不入库（单测缺它时自动跳过）
+frpc_full_example.toml
