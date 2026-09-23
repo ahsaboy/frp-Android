@@ -150,9 +150,7 @@ class ActivityConfigStartFrp : BaseActivity(), TaskerPluginConfig<StartFrpInput>
             loadedConfigFiles = files
 
             configFileIndex = selectedConfigFile?.let { files.indexOf(it) }?.takeIf { it >= 0 } ?: -1
-            if (configFileIndex >= 0) {
-                selectedConfigFile = files[configFileIndex]
-            }
+            selectedConfigFile = files.getOrNull(configFileIndex)
         }
 
         Scaffold(
@@ -216,15 +214,13 @@ class ActivityConfigStartFrp : BaseActivity(), TaskerPluginConfig<StartFrpInput>
                 Card(modifier = Modifier.fillMaxWidth()) {
                     OverlaySpinnerPreference(
                         title = stringResource(R.string.tasker_select_config),
-                        items = if (loadedConfigFiles.isNotEmpty()) {
-                            loadedConfigFiles.map { SpinnerEntry(title = it) }
-                        } else {
-                            listOf(SpinnerEntry(title = stringResource(R.string.tasker_no_config)))
-                        },
-                        selectedIndex = configFileIndex.coerceAtLeast(0),
+                        items = listOf(
+                            SpinnerEntry(title = stringResource(R.string.quick_tile_not_selected)),
+                        ) + loadedConfigFiles.map { SpinnerEntry(title = it) },
+                        selectedIndex = (configFileIndex + 1).coerceIn(0, loadedConfigFiles.size),
                         onSelectedIndexChange = { idx ->
-                            configFileIndex = idx
-                            selectedConfigFile = loadedConfigFiles.getOrNull(idx)
+                            configFileIndex = idx - 1
+                            selectedConfigFile = loadedConfigFiles.getOrNull(configFileIndex)
                         },
                     )
                 }

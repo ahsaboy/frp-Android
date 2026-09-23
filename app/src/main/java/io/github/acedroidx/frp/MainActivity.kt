@@ -373,7 +373,9 @@ class MainActivity : BaseActivity() {
         val refreshCount = configRefreshCounter.value
         val statusInfo = remember { mutableStateOf<ConfigStatusInfo?>(null) }
         LaunchedEffect(config, refreshCount) {
-            statusInfo.value = loadConfigStatusInfo(config)
+            statusInfo.value = withContext(Dispatchers.IO) {
+                loadConfigStatusInfo(config)
+            }
         }
 
         // 监听实时配置日志
