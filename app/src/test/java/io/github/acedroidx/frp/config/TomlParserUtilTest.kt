@@ -711,4 +711,33 @@ class TomlParserUtilTest {
         assertEquals(original["enabled"], reparsed["enabled"])
         assertEquals(original["ratio"], reparsed["ratio"])
     }
+
+    @Test
+    fun roundTrip_latestConfigObjectArraysAndBooleanMap() {
+        val original = mapOf<String, Any?>(
+            "featureGates" to mapOf("VirtualNet" to true),
+            "allowPorts" to listOf(
+                mapOf<String, Any?>("start" to 2000L, "end" to 3000L),
+                mapOf<String, Any?>("single" to 3001L),
+            ),
+            "httpPlugins" to listOf(
+                mapOf<String, Any?>(
+                    "name" to "user-manager",
+                    "addr" to "127.0.0.1:9000",
+                    "path" to "/handler",
+                    "ops" to listOf("Login"),
+                ),
+            ),
+        )
+
+        val serialized = TomlParserUtil.mapToToml(original)
+        val reparsed = TomlParserUtil.parseToMap(serialized)
+
+        assertEquals(true, (reparsed["featureGates"] as Map<*, *>)["VirtualNet"])
+        assertEquals(2, (reparsed["allowPorts"] as List<*>).size)
+        assertEquals(3001L, ((reparsed["allowPorts"] as List<*>)[1] as Map<*, *])["single"])
+        val plugin = (reparsed["httpPlugins"] as List<*>)[0] as Map<*, *>
+        assertEquals("user-manager", plugin["name"])
+        assertEquals(listOf("Login"), plugin["ops"])
+    }
 }

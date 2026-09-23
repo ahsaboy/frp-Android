@@ -17,6 +17,7 @@ object FrpsSchema {
             webServerSection(),
             logSection(),
             advancedSection(),
+            httpPluginsSection(),
         ),
     )
 
@@ -51,6 +52,7 @@ object FrpsSchema {
         title = "认证",
         fields = listOf(
             FieldSchema("auth.method", FieldType.ENUM, "认证方式", defaultValue = "token", enumOptions = listOf("token", "oidc")),
+            FieldSchema("auth.additionalScopes", FieldType.STRING_LIST, "附加认证范围", hint = "HeartBeats, NewWorkConns"),
             FieldSchema("auth.token", FieldType.STRING, "Token", visibleWhen = { SchemaHelpers.getValueByPath(it, "auth.method") == "token" }),
             FieldSchema("auth.tokenSource.type", FieldType.ENUM, "Token 来源", enumOptions = listOf("file", "exec"), visibleWhen = { SchemaHelpers.getValueByPath(it, "auth.method") == "token" }),
             FieldSchema("auth.tokenSource.file.path", FieldType.STRING, "Token 文件路径", visibleWhen = { SchemaHelpers.getValueByPath(it, "auth.tokenSource.type") == "file" }),
@@ -144,7 +146,36 @@ object FrpsSchema {
             FieldSchema("userConnTimeout", FieldType.INT, "用户连接超时(秒)", defaultValue = 10),
             FieldSchema("udpPacketSize", FieldType.INT, "UDP 包大小(字节)", defaultValue = 1500),
             FieldSchema("natholeAnalysisDataReserveHours", FieldType.INT, "NAT 穿透数据保留(小时)", defaultValue = 168),
+            FieldSchema(
+                "allowPorts",
+                FieldType.OBJECT_LIST,
+                "允许的端口范围",
+                hint = "可填写 start/end 范围或 single 单端口",
+                children = listOf(
+                    FieldSchema("start", FieldType.INT, "起始端口"),
+                    FieldSchema("end", FieldType.INT, "结束端口"),
+                    FieldSchema("single", FieldType.INT, "单个端口"),
+                ),
+            ),
             FieldSchema("enablePrometheus", FieldType.BOOL, "启用 Prometheus", defaultValue = false),
+        ),
+    )
+
+    private fun httpPluginsSection() = ConfigSection(
+        id = "httpPlugins",
+        title = "HTTP 插件",
+        fields = listOf(
+            FieldSchema(
+                "httpPlugins",
+                FieldType.OBJECT_LIST,
+                "HTTP 插件列表",
+                children = listOf(
+                    FieldSchema("name", FieldType.STRING, "名称", required = true),
+                    FieldSchema("addr", FieldType.STRING, "地址", required = true),
+                    FieldSchema("path", FieldType.STRING, "路径", required = true),
+                    FieldSchema("ops", FieldType.STRING_LIST, "操作"),
+                ),
+            ),
         ),
     )
 }

@@ -4,6 +4,7 @@ import com.akuleshov7.ktoml.TomlInputConfig
 import com.akuleshov7.ktoml.parsers.TomlParser
 import com.akuleshov7.ktoml.tree.nodes.TableType
 import com.akuleshov7.ktoml.tree.nodes.TomlArrayOfTablesElement
+import com.akuleshov7.ktoml.tree.nodes.TomlInlineTable
 import com.akuleshov7.ktoml.tree.nodes.TomlKeyValueArray
 import com.akuleshov7.ktoml.tree.nodes.TomlKeyValuePrimitive
 import com.akuleshov7.ktoml.tree.nodes.TomlNode
@@ -17,6 +18,8 @@ import com.akuleshov7.ktoml.tree.nodes.pairs.values.TomlNull
 import com.akuleshov7.ktoml.tree.nodes.pairs.values.TomlValue
 
 object TomlParserUtil {
+
+    private val arrayOfTablesKeys = setOf("proxies", "visitors", "httpPlugins")
 
     private val tomlInputConfig = TomlInputConfig(
         ignoreUnknownNames = true,
@@ -91,7 +94,10 @@ object TomlParserUtil {
             is TomlBoolean -> value.content as? Boolean
             is TomlLong -> (value.content as? Number)?.toLong()
             is TomlDouble -> (value.content as? Number)?.toDouble()
-            is TomlValue -> value.content
+            is TomlInlineTable -> mutableMapOf<String, Any?>().also { processChildren(value, it) }
+            is List<*> -> value.map { extractTomlValue(it) }
+            is Map<*, *> -> value.entries.associate { it.key.toString() to extractTomlValue(it.value) }
+            is TomlValue -> extractTomlValue(value.content)
             else -> value
         }
     }
@@ -118,7 +124,7 @@ object TomlParserUtil {
                     tables.add(key to (value as Map<String, Any?>))
                 }
                 is List<*> -> {
-                    if (value.isNotEmpty() && value.first() is Map<*, *>) {
+                    if (key in arrayOfTablesKeys && value.isNotEmpty() && value.first() is Map<*, *>) {
                         @Suppress("UNCHECKED_CAST")
                         arraysOfTables.add(key to (value as List<Map<String, Any?>>))
                     } else {
@@ -147,7 +153,10 @@ object TomlParserUtil {
             is Boolean -> sb.appendLine("$key = $value")
             is Number -> sb.appendLine("$key = $value")
             is List<*> -> {
-                val items = value.joinToString(", ") { "\"${escapeString(it.toString())}\"" }
+                val items = value.joinToString(", ") { item ->
+                    if (item is Map<*, *>) writeInlineTable(item)
+                    else writeScalar(item)
+                }
                 sb.appendLine("$key = [$items]")
             }
             is Map<*, *> -> {}
@@ -173,7 +182,7 @@ object TomlParserUtil {
                     nestedTables.add(key to (value as Map<String, Any?>))
                 }
                 is List<*> -> {
-                    if (value.isNotEmpty() && value.first() is Map<*, *>) {
+                    if (key in arrayOfTablesKeys && value.isNotEmpty() && value.first() is Map<*, *>) {
                         @Suppress("UNCHECKED_CAST")
                         nestedArrays.add(key to (value as List<Map<String, Any?>>))
                     } else {
@@ -205,6 +214,21 @@ object TomlParserUtil {
             sb.appendLine()
             sb.appendLine("[[$key]]")
             writeTableContent(sb, key, item)
+        }
+    }
+
+    private fun writeScalar(value: Any?): String {
+        return when (value) {
+            null -> ""
+            is String -> "\"${escapeString(value)}\""
+            is Boolean, is Number -> value.toString()
+            else -> "\"${escapeString(value.toString())}\""
+        }
+    }
+
+    private fun writeInlineTable(table: Map<*, *>): String {
+        return table.entries.joinToString(", ", prefix = "{ ", postfix = " }") { (key, value) ->
+            "${key.toString()} = ${if (value is Map<*, *>) writeInlineTable(value) else writeScalar(value)}"
         }
     }
 

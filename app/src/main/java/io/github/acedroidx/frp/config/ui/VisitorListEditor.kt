@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.ConfigFormViewModel
+import io.github.acedroidx.frp.config.FieldType
 import io.github.acedroidx.frp.config.SchemaHelpers
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -122,11 +123,15 @@ private fun VisitorCard(
                             val visible = field.visibleWhen?.invoke(visitor) ?: true
                             if (visible) {
                                 val value = SchemaHelpers.getValueByPath(visitor, field.key)
-                                FieldRenderer(
-                                    field = field,
-                                    value = value,
-                                    onChange = { onUpdateField(field.key, it) },
-                                )
+                                if (field.type == FieldType.OBJECT) {
+                                    PluginSection(field, visitor, onUpdateField, viewModel)
+                                } else {
+                                    FieldRenderer(
+                                        field = field,
+                                        value = value,
+                                        onChange = { onUpdateField(field.key, it) },
+                                    )
+                                }
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
                         }

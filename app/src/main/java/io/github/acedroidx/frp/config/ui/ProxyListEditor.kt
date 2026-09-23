@@ -151,7 +151,7 @@ private fun ProxyCard(
 }
 
 @Composable
-private fun PluginSection(
+fun PluginSection(
     field: io.github.acedroidx.frp.config.FieldSchema,
     proxy: Map<String, Any?>,
     onUpdateField: (String, Any?) -> Unit,

@@ -35,6 +35,9 @@ object FrpcSchema {
             FieldSchema("dnsServer", FieldType.STRING, "DNS 服务器", hint = "如 8.8.8.8"),
             FieldSchema("udpPacketSize", FieldType.INT, "UDP 包大小(字节)", defaultValue = 1500),
             FieldSchema("start", FieldType.STRING_LIST, "启动的代理列表", hint = "留空表示全部启动"),
+            FieldSchema("includes", FieldType.STRING_LIST, "包含的代理配置", hint = "例如 ./confd/*.toml"),
+            FieldSchema("featureGates", FieldType.MAP_BOOL, "功能开关", hint = "例如 VirtualNet = true"),
+            FieldSchema("virtualNet.address", FieldType.STRING, "虚拟网络地址", hint = "例如 100.86.1.1/24"),
         ),
     )
 
@@ -88,7 +91,7 @@ object FrpcSchema {
         title = "传输",
         fields = listOf(
             FieldSchema("transport.protocol", FieldType.ENUM, "协议", defaultValue = "tcp", enumOptions = listOf("tcp", "kcp", "quic", "websocket", "wss")),
-            // FieldSchema("transport.wireProtocol", FieldType.ENUM, "线路协议", defaultValue = "v1", enumOptions = listOf("v1", "v2")),
+            FieldSchema("transport.wireProtocol", FieldType.ENUM, "线路协议", defaultValue = "v1", enumOptions = listOf("v1", "v2")),
             FieldSchema("transport.dialServerTimeout", FieldType.INT, "连接超时(秒)", defaultValue = 10),
             FieldSchema("transport.dialServerKeepalive", FieldType.INT, "连接保活(秒)", defaultValue = 7200),
             FieldSchema("transport.connectServerLocalIP", FieldType.STRING, "本地绑定 IP"),
@@ -136,6 +139,7 @@ object FrpcSchema {
         FieldSchema("localPort", FieldType.INT, "本地端口"),
         FieldSchema("annotations", FieldType.MAP_STRING, "注释"),
         FieldSchema("metadatas", FieldType.MAP_STRING, "元数据"),
+        FieldSchema("plugin", FieldType.OBJECT, "插件"),
     )
 
     private fun proxyTransportFields(): List<FieldSchema> = listOf(
@@ -152,7 +156,16 @@ object FrpcSchema {
         FieldSchema("healthCheck.maxFailed", FieldType.INT, "最大失败次数", defaultValue = 1, visibleWhen = { (SchemaHelpers.getValueByPath(it, "healthCheck.type") as? String).orEmpty().isNotEmpty() }),
         FieldSchema("healthCheck.intervalSeconds", FieldType.INT, "检查间隔(秒)", defaultValue = 10, visibleWhen = { (SchemaHelpers.getValueByPath(it, "healthCheck.type") as? String).orEmpty().isNotEmpty() }),
         FieldSchema("healthCheck.path", FieldType.STRING, "HTTP 检查路径", visibleWhen = { SchemaHelpers.getValueByPath(it, "healthCheck.type") == "http" }),
-        FieldSchema("healthCheck.httpHeaders", FieldType.MAP_STRING, "HTTP 检查请求头", visibleWhen = { SchemaHelpers.getValueByPath(it, "healthCheck.type") == "http" }),
+        FieldSchema(
+            "healthCheck.httpHeaders",
+            FieldType.OBJECT_LIST,
+            "HTTP 检查请求头",
+            visibleWhen = { SchemaHelpers.getValueByPath(it, "healthCheck.type") == "http" },
+            children = listOf(
+                FieldSchema("name", FieldType.STRING, "请求头名称", required = true),
+                FieldSchema("value", FieldType.STRING, "请求头值"),
+            ),
+        ),
     )
 
     private fun proxyLoadBalancerFields(): List<FieldSchema> = listOf(
@@ -219,6 +232,7 @@ object FrpcSchema {
         FieldSchema("bindPort", FieldType.INT, "绑定端口"),
         FieldSchema("transport.useEncryption", FieldType.BOOL, "加密传输", defaultValue = false),
         FieldSchema("transport.useCompression", FieldType.BOOL, "压缩传输", defaultValue = false),
+        FieldSchema("plugin", FieldType.OBJECT, "插件"),
     )
 
     private fun visitorTypes(): List<VisitorTypeSchema> {
@@ -291,7 +305,9 @@ object FrpcSchema {
             FieldSchema("crtPath", FieldType.STRING, "证书路径"),
             FieldSchema("keyPath", FieldType.STRING, "私钥路径"),
         )),
-        PluginTypeSchema("virtual_net", "虚拟网络", emptyList()),
+        PluginTypeSchema("virtual_net", "虚拟网络", listOf(
+            FieldSchema("destinationIP", FieldType.STRING, "目标 IP", required = true),
+        )),
     )
 
     // endregion

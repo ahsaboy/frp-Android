@@ -3,7 +3,7 @@ package io.github.acedroidx.frp.config
 import io.github.acedroidx.frp.FrpType
 
 enum class FieldType {
-    STRING, INT, LONG, BOOL, ENUM, STRING_LIST, MAP_STRING, OBJECT
+    STRING, INT, LONG, BOOL, ENUM, STRING_LIST, MAP_STRING, MAP_BOOL, OBJECT, OBJECT_LIST
 }
 
 data class FieldSchema(

@@ -25,7 +25,9 @@ import androidx.compose.ui.unit.dp
 import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.FieldSchema
 import io.github.acedroidx.frp.config.FieldType
+import io.github.acedroidx.frp.config.SchemaHelpers
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -51,7 +53,9 @@ fun FieldRenderer(
         FieldType.ENUM -> EnumField(field, value as? String ?: "", onChange, modifier)
         FieldType.STRING_LIST -> StringListField(field, (value as? List<*>)?.filterIsInstance<String>() ?: emptyList(), onChange, modifier)
         FieldType.MAP_STRING -> MapField(field, (value as? Map<*, *>)?.mapKeys { it.key.toString() }?.mapValues { it.value.toString() } ?: emptyMap(), onChange, modifier)
+        FieldType.MAP_BOOL -> BoolMapField(field, (value as? Map<*, *>)?.mapKeys { it.key.toString() }?.mapValues { it.value as? Boolean ?: false } ?: emptyMap(), onChange, modifier)
         FieldType.OBJECT -> {} // Handled by parent (SectionRenderer or PluginEditor)
+        FieldType.OBJECT_LIST -> ObjectListField(field, value, onChange, modifier)
     }
 }
 
@@ -274,6 +278,138 @@ private fun MapField(
             val newMap = value.toMutableMap()
             newMap[newKey] = newValue
             onChange(newMap)
+        }
+    }
+}
+
+@Composable
+private fun BoolMapField(
+    field: FieldSchema,
+    value: Map<String, Boolean>,
+    onChange: (Any?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(field.label, style = MiuixTheme.textStyles.body2, modifier = Modifier.padding(bottom = 4.dp))
+        for ((key, enabled) in value) {
+            BasicComponent(
+                title = key,
+                onClick = {
+                    val updated = value.toMutableMap()
+                    updated[key] = !enabled
+                    onChange(updated)
+                },
+                endActions = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(
+                            checked = enabled,
+                            onCheckedChange = { checked ->
+                                val updated = value.toMutableMap()
+                                updated[key] = checked
+                                onChange(updated)
+                            },
+                        )
+                        IconButton(onClick = {
+                            val updated = value.toMutableMap()
+                            updated.remove(key)
+                            onChange(updated)
+                        }) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_baseline_delete_24),
+                                contentDescription = stringResource(R.string.delete_item),
+                            )
+                        }
+                    }
+                },
+            )
+        }
+        AddMapBoolEntryButton { key ->
+            val updated = value.toMutableMap()
+            updated[key] = true
+            onChange(updated)
+        }
+    }
+}
+
+@Composable
+private fun AddMapBoolEntryButton(onAdd: (String) -> Unit) {
+    var key by remember { mutableStateOf("") }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        TextField(
+            value = key,
+            onValueChange = { key = it },
+            singleLine = true,
+            label = stringResource(R.string.field_key_label),
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = {
+            if (key.isNotEmpty()) {
+                onAdd(key)
+                key = ""
+            }
+        }) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_add_24dp),
+                contentDescription = stringResource(R.string.add_item),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ObjectListField(
+    field: FieldSchema,
+    rawValue: Any?,
+    onChange: (Any?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val value = (rawValue as? List<*>)?.mapNotNull { item ->
+        (item as? Map<*, *>)?.mapKeys { it.key.toString() }?.toMutableMap()
+    } ?: emptyList()
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(field.label, style = MiuixTheme.textStyles.body2, modifier = Modifier.padding(bottom = 4.dp))
+        for ((index, item) in value.withIndex()) {
+            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("#${index + 1}", style = MiuixTheme.textStyles.title3)
+                        IconButton(onClick = {
+                            onChange(value.toMutableList().also { it.removeAt(index) })
+                        }) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_baseline_delete_24),
+                                contentDescription = stringResource(R.string.delete_item),
+                            )
+                        }
+                    }
+                    for (child in field.children) {
+                        val childValue = SchemaHelpers.getValueByPath(item, child.key)
+                        FieldRenderer(
+                            field = child,
+                            value = childValue,
+                            onChange = { newValue ->
+                                val updatedItem = item.toMutableMap()
+                                SchemaHelpers.setValueByPath(updatedItem, child.key, newValue)
+                                onChange(value.toMutableList().also { it[index] = updatedItem })
+                            },
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            }
+        }
+        IconButton(onClick = {
+            onChange(value + mutableMapOf<String, Any?>())
+        }) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_add_24dp),
+                contentDescription = stringResource(R.string.add_item),
+            )
         }
     }
 }
