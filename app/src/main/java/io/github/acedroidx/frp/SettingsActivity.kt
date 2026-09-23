@@ -19,9 +19,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -60,6 +57,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.SpinnerEntry
 import top.yukonga.miuix.kmp.basic.Switch
@@ -162,7 +160,6 @@ class SettingsActivity : BaseActivity() {
                     Box(
                         modifier = Modifier
                             .padding(contentPadding)
-                            .consumeWindowInsets(WindowInsets.ime)
                             .verticalScroll(rememberScrollState())
                     ) {
                         SettingsContent()
@@ -220,7 +217,7 @@ class SettingsActivity : BaseActivity() {
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            SettingsSection {
+            SettingsSection(title = stringResource(R.string.settings_section_display)) {
                 OverlaySpinnerPreference(
                     title = stringResource(R.string.language_title),
                     items = languageOptions.map { SpinnerEntry(title = languageLabelMap[it]) },
@@ -259,7 +256,7 @@ class SettingsActivity : BaseActivity() {
                 )
             }
 
-            SettingsSection {
+            SettingsSection(title = stringResource(R.string.settings_section_runtime)) {
                 SettingItemWithSwitch(
                     title = stringResource(R.string.auto_start_switch),
                     checked = isAutoStart,
@@ -298,7 +295,7 @@ class SettingsActivity : BaseActivity() {
                 )
             }
 
-            SettingsSection {
+            SettingsSection(title = stringResource(R.string.settings_section_logs)) {
                 SettingItemWithSwitch(
                     title = stringResource(R.string.log_wrap_switch),
                     checked = isLogWrapEnabled,
@@ -316,7 +313,7 @@ class SettingsActivity : BaseActivity() {
                 )
             }
 
-            SettingsSection {
+            SettingsSection(title = stringResource(R.string.settings_section_automation)) {
                 SettingItemWithConfigSelector(
                     title = stringResource(R.string.quick_tile_config),
                     currentConfig = currentQuickTileConfig,
@@ -344,7 +341,7 @@ class SettingsActivity : BaseActivity() {
                 )
             }
 
-            SettingsSection {
+            SettingsSection(title = stringResource(R.string.settings_section_behavior)) {
                 SettingItemWithSwitch(
                     title = stringResource(R.string.exclude_from_recents),
                     checked = isExcludeFromRecents,
@@ -369,7 +366,7 @@ class SettingsActivity : BaseActivity() {
                 )
             }
 
-            SettingsSection {
+            SettingsSection(title = stringResource(R.string.settings_section_data)) {
                 val exportStatus by exportStatusMessage.collectAsStateWithLifecycle(null)
                 ArrowPreference(
                     title = stringResource(R.string.export_config),
@@ -378,7 +375,7 @@ class SettingsActivity : BaseActivity() {
                 )
             }
 
-            SettingsSection {
+            SettingsSection(title = stringResource(R.string.settings_section_about)) {
                 ArrowPreference(
                     title = stringResource(R.string.aboutButton),
                     onClick = {
@@ -390,11 +387,15 @@ class SettingsActivity : BaseActivity() {
     }
 
     @Composable
-    fun SettingsSection(content: @Composable ColumnScope.() -> Unit) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            content()
+    fun SettingsSection(
+        title: String,
+        content: @Composable ColumnScope.() -> Unit,
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            SmallTitle(text = title)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                content()
+            }
         }
     }
 

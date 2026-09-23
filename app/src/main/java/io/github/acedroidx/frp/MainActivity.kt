@@ -22,7 +22,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,10 +29,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -282,13 +281,7 @@ class MainActivity : BaseActivity() {
                     }
                 ) { contentPadding ->
                     // Screen content
-                    Box(
-                        modifier = Modifier
-                            .padding(contentPadding)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        MainContent()
-                    }
+                    MainContent(modifier = Modifier.padding(contentPadding))
 
                     if (openDialog.value) {
                         CreateConfigDialog { openDialog.value = false }
@@ -332,29 +325,47 @@ class MainActivity : BaseActivity() {
 
     @Preview(showBackground = true)
     @Composable
-    fun MainContent() {
+    fun MainContent(modifier: Modifier = Modifier) {
         val frpcConfigList by frpcConfigList.collectAsStateWithLifecycle(emptyList())
         val frpsConfigList by frpsConfigList.collectAsStateWithLifecycle(emptyList())
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
+        LazyColumn(
+            modifier = modifier.fillMaxWidth(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                horizontal = 12.dp,
+                vertical = 8.dp,
+            ),
         ) {
             if (frpcConfigList.isEmpty() && frpsConfigList.isEmpty()) {
-                Text(
-                    stringResource(R.string.no_config),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
+                item(key = "empty") {
+                    Text(
+                        stringResource(R.string.no_config),
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
             if (frpcConfigList.isNotEmpty()) {
-                Text("frpc", style = MiuixTheme.textStyles.headline1)
+                item(key = "frpc_header") {
+                    Text("frpc", style = MiuixTheme.textStyles.headline1)
+                }
+                items(
+                    items = frpcConfigList,
+                    key = { config -> "frpc:${config.fileName}" },
+                ) { config ->
+                    FrpConfigItem(config)
+                }
             }
-            frpcConfigList.forEach { config -> FrpConfigItem(config) }
             if (frpsConfigList.isNotEmpty()) {
-                Text("frps", style = MiuixTheme.textStyles.headline1)
+                item(key = "frps_header") {
+                    Text("frps", style = MiuixTheme.textStyles.headline1)
+                }
+                items(
+                    items = frpsConfigList,
+                    key = { config -> "frps:${config.fileName}" },
+                ) { config ->
+                    FrpConfigItem(config)
+                }
             }
-            frpsConfigList.forEach { config -> FrpConfigItem(config) }
         }
     }
 

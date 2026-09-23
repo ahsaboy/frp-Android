@@ -126,12 +126,22 @@ class ConfigFormViewModel(
 
     fun deleteProxy(index: Int) {
         formData.removeProxy(index)
-        if (_editingProxyIndex.value == index) _editingProxyIndex.value = null
+        _editingProxyIndex.value = when {
+            _editingProxyIndex.value == index -> null
+            _editingProxyIndex.value != null && _editingProxyIndex.value!! > index ->
+                _editingProxyIndex.value!! - 1
+            else -> _editingProxyIndex.value
+        }
     }
 
     fun deleteVisitor(index: Int) {
         formData.removeVisitor(index)
-        if (_editingVisitorIndex.value == index) _editingVisitorIndex.value = null
+        _editingVisitorIndex.value = when {
+            _editingVisitorIndex.value == index -> null
+            _editingVisitorIndex.value != null && _editingVisitorIndex.value!! > index ->
+                _editingVisitorIndex.value!! - 1
+            else -> _editingVisitorIndex.value
+        }
     }
 
     fun updateProxyField(index: Int, path: String, value: Any?) {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -103,7 +104,10 @@ fun ConfigFormScreen(
         },
         bottomBar = {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Button(
@@ -125,7 +129,12 @@ fun ConfigFormScreen(
         },
         modifier = modifier,
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .imePadding(),
+        ) {
             if (isFormMode) {
                 FormModeContent(
                     viewModel = viewModel,
@@ -160,7 +169,14 @@ private fun FormModeContent(
     val expandedSections by viewModel.expandedSections.collectAsStateWithLifecycle()
 
     val tabs = schema.sections.map { it.title } +
-        if (configType == FrpType.FRPC) listOf("代理", "访客") else emptyList()
+        if (configType == FrpType.FRPC) {
+            listOf(
+                stringResource(R.string.proxy_list_title),
+                stringResource(R.string.visitor_list_title),
+            )
+        } else {
+            emptyList()
+        }
 
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { tabs.size })
@@ -319,6 +335,10 @@ private fun RenameDialogInForm(
     onDismiss: () -> Unit,
 ) {
     var text by remember { mutableStateOf(originName) }
+    val normalizedName = text.trim().removeSuffix(".toml")
+    val isValidName = normalizedName.isNotEmpty() &&
+        !normalizedName.contains('/') &&
+        !normalizedName.contains('\\')
     OverlayDialog(
         show = true,
         title = stringResource(R.string.rename),
@@ -342,8 +362,9 @@ private fun RenameDialogInForm(
                     Spacer(Modifier.width(20.dp))
                     TextButton(
                         text = stringResource(R.string.confirm),
-                        onClick = { onConfirm("$text.toml") },
+                        onClick = { onConfirm("$normalizedName.toml") },
                         modifier = Modifier.weight(1f),
+                        enabled = isValidName,
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                     )
                 }

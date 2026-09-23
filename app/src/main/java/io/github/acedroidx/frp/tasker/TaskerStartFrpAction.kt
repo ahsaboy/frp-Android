@@ -156,16 +156,12 @@ class ActivityConfigStartFrp : BaseActivity(), TaskerPluginConfig<StartFrpInput>
         LaunchedEffect(frpTypeIndex) {
             selectedFrpType = if (frpTypeIndex == 1) FrpType.FRPS else FrpType.FRPC
             val dir = selectedFrpType.getDir(this@ActivityConfigStartFrp)
-            loadedConfigFiles = dir.list()?.toList()?.sorted() ?: emptyList()
+            val files = dir.list()?.toList()?.sorted() ?: emptyList()
+            loadedConfigFiles = files
 
-            configFileIndex = if (selectedConfigFile != null && loadedConfigFiles.contains(selectedConfigFile)) {
-                loadedConfigFiles.indexOf(selectedConfigFile)
-            } else {
-                -1
-            }
-
+            configFileIndex = selectedConfigFile?.let { files.indexOf(it) }?.takeIf { it >= 0 } ?: -1
             if (configFileIndex >= 0) {
-                selectedConfigFile = loadedConfigFiles[configFileIndex]
+                selectedConfigFile = files[configFileIndex]
             }
         }
 
@@ -200,7 +196,7 @@ class ActivityConfigStartFrp : BaseActivity(), TaskerPluginConfig<StartFrpInput>
                             }
                         },
                         modifier = Modifier.weight(1f),
-                        enabled = loadedConfigFiles.isNotEmpty(),
+                        enabled = selectedConfigFile != null,
                         colors = ButtonDefaults.buttonColorsPrimary(),
                     ) {
                         Text(stringResource(R.string.saveConfigButton))

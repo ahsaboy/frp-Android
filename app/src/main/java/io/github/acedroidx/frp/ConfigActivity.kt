@@ -21,6 +21,7 @@ import java.io.File
 
 class ConfigActivity : BaseActivity() {
     private val configEditText = MutableStateFlow("")
+    private val displayConfigFileName = MutableStateFlow("")
     private val isAutoStart = MutableStateFlow(false)
     private val isAutoStartOnAppLaunch = MutableStateFlow(false)
     private val frpVersion = MutableStateFlow("Loading...")
@@ -48,6 +49,7 @@ class ConfigActivity : BaseActivity() {
             return
         }
         configFile = frpConfig.getFile(this)
+        displayConfigFileName.value = configFile.name.removeSuffix(".toml")
         frpConfigType = frpConfig.type
         autoStartPreferencesKey = frpConfig.type.getAutoStartPreferencesKey()
         autoStartOnAppLaunchPreferencesKey = frpConfig.type.getAutoStartOnAppLaunchPreferencesKey()
@@ -67,6 +69,7 @@ class ConfigActivity : BaseActivity() {
             val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
             val autoStart by isAutoStart.collectAsStateWithLifecycle(false)
             val autoStartOnAppLaunch by isAutoStartOnAppLaunch.collectAsStateWithLifecycle(false)
+            val currentConfigFileName by displayConfigFileName.collectAsStateWithLifecycle("")
             FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
                 ConfigFormScreen(
                     configType = frpConfigType,
@@ -78,7 +81,7 @@ class ConfigActivity : BaseActivity() {
                     },
                     onCancel = { closeActivity() },
                     onDontSave = { closeActivity() },
-                    configFileName = configFile.name.removeSuffix(".toml"),
+                    configFileName = currentConfigFileName,
                     onRename = { newName -> renameConfig(newName) },
                     isAutoStart = autoStart,
                     onAutoStartChange = { setAutoStart(it) },
@@ -112,13 +115,18 @@ class ConfigActivity : BaseActivity() {
     }
 
     fun renameConfig(newName: String) {
+        val baseName = newName.trim().removeSuffix(".toml")
+        if (baseName.isEmpty() || baseName.contains('/') || baseName.contains('\\')) return
+
         val originAutoStart = isAutoStart.value
         setAutoStart(false)
         val originAutoStartOnAppLaunch = isAutoStartOnAppLaunch.value
         setAutoStartOnAppLaunch(false)
-        val newFile = File(configFile.parent, newName)
-        configFile.renameTo(newFile)
-        configFile = newFile
+        val newFile = File(configFile.parentFile, "$baseName.toml")
+        if (configFile.renameTo(newFile)) {
+            configFile = newFile
+            displayConfigFileName.value = baseName
+        }
         setAutoStart(originAutoStart)
         setAutoStartOnAppLaunch(originAutoStartOnAppLaunch)
     }
