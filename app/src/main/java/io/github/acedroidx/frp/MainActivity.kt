@@ -45,6 +45,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -411,99 +412,106 @@ class MainActivity : BaseActivity() {
                     }
                 }
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp)
+                        .padding(12.dp),
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(config.fileName)
-                        statusInfo.value?.let { info ->
-                            if (info.serverAddr.isNotEmpty()) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = config.fileName,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            statusInfo.value?.let { info ->
+                                if (info.serverAddr.isNotEmpty()) {
+                                    Text(
+                                        "${stringResource(R.string.status_server)}: ${info.serverAddr}:${info.serverPort}",
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                }
+                                val bootText = stringResource(if (info.isBootAutoStart) R.string.status_boot_auto_start else R.string.status_boot_manual)
+                                val appText = stringResource(if (info.isAppLaunchAutoStart) R.string.status_app_launch_auto_start else R.string.status_app_launch_manual)
+                                val defaultColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                val primaryColor = MiuixTheme.colorScheme.primary
                                 Text(
-                                    "${stringResource(R.string.status_server)}: ${info.serverAddr}:${info.serverPort}",
+                                    text = buildAnnotatedString {
+                                        withStyle(SpanStyle(color = if (info.isBootAutoStart) primaryColor else defaultColor)) {
+                                            append(bootText)
+                                        }
+                                        append("  ")
+                                        withStyle(SpanStyle(color = if (info.isAppLaunchAutoStart) primaryColor else defaultColor)) {
+                                            append(appText)
+                                        }
+                                    },
                                     style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
-                            val bootText = stringResource(if (info.isBootAutoStart) R.string.status_boot_auto_start else R.string.status_boot_manual)
-                            val appText = stringResource(if (info.isAppLaunchAutoStart) R.string.status_app_launch_auto_start else R.string.status_app_launch_manual)
-                            val defaultColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            val primaryColor = MiuixTheme.colorScheme.primary
-                            Text(
-                                text = buildAnnotatedString {
-                                    withStyle(SpanStyle(color = if (info.isBootAutoStart) primaryColor else defaultColor)) {
-                                        append(bootText)
-                                    }
-                                    append("  ")
-                                    withStyle(SpanStyle(color = if (info.isAppLaunchAutoStart) primaryColor else defaultColor)) {
-                                        append(appText)
-                                    }
-                                },
-                                style = MiuixTheme.textStyles.footnote1,
-                            )
-                        }
-                        if (isRunning) {
-                            Text(
-                                stringResource(R.string.quick_tile_running),
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = MiuixTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    Icon(
-                        imageVector = if (showLog.value) {
-                            MiuixIcons.ExpandLess
-                        } else {
-                            MiuixIcons.ExpandMore
-                        },
-                        contentDescription = stringResource(
-                            if (showLog.value) {
-                                R.string.collapse
-                            } else {
-                                R.string.expand
+                            if (isRunning) {
+                                Text(
+                                    stringResource(R.string.quick_tile_running),
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = MiuixTheme.colorScheme.primary,
+                                )
                             }
-                        ),
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    )
-                    IconButton(
-                        onClick = { startConfigActivity(config) },
-                        enabled = !isRunning,
-                        modifier = Modifier.padding(start = 2.dp).size(36.dp),
-                        backgroundColor = MiuixTheme.colorScheme.secondaryVariant,
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Edit,
-                            contentDescription = stringResource(R.string.edit_config),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            showDeleteDialog.value = true
-                        },
-                        enabled = !isRunning,
-                        modifier = Modifier.padding(start = 6.dp, end = 6.dp).size(36.dp),
-                        backgroundColor = MiuixTheme.colorScheme.secondaryVariant,
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Delete,
-                            contentDescription = stringResource(R.string.delete_config),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    Switch(checked = isRunning, onCheckedChange = {
-                        if (it) {
-                            startShell(config)
-                        } else {
-                            stopShell(config)
-                            showLog.value = false  // 关闭时自动收起日志
                         }
-                    })
+                        Icon(
+                            imageVector = if (showLog.value) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
+                            contentDescription = stringResource(
+                                if (showLog.value) R.string.collapse else R.string.expand,
+                            ),
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        IconButton(
+                            onClick = { startConfigActivity(config) },
+                            enabled = !isRunning,
+                            modifier = Modifier.size(36.dp),
+                            backgroundColor = MiuixTheme.colorScheme.secondaryVariant,
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Edit,
+                                contentDescription = stringResource(R.string.edit_config),
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+                        IconButton(
+                            onClick = { showDeleteDialog.value = true },
+                            enabled = !isRunning,
+                            modifier = Modifier.padding(start = 8.dp).size(36.dp),
+                            backgroundColor = MiuixTheme.colorScheme.secondaryVariant,
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Delete,
+                                contentDescription = stringResource(R.string.delete_config),
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+                        Switch(
+                            checked = isRunning,
+                            onCheckedChange = {
+                                if (it) {
+                                    startShell(config)
+                                } else {
+                                    stopShell(config)
+                                    showLog.value = false
+                                }
+                            },
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
                 }
             }
 
