@@ -735,7 +735,7 @@ class TomlParserUtilTest {
 
         assertEquals(true, (reparsed["featureGates"] as Map<*, *>)["VirtualNet"])
         assertEquals(2, (reparsed["allowPorts"] as List<*>).size)
-        assertEquals(3001L, ((reparsed["allowPorts"] as List<*>)[1] as Map<*, *])["single"])
+        assertEquals(3001L, ((reparsed["allowPorts"] as List<*>)[1] as Map<*, *>)["single"])
         val plugin = (reparsed["httpPlugins"] as List<*>)[0] as Map<*, *>
         assertEquals("user-manager", plugin["name"])
         assertEquals(listOf("Login"), plugin["ops"])
