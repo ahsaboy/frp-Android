@@ -132,8 +132,7 @@ fun ConfigFormScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .imePadding(),
+                .padding(padding),
         ) {
             if (isFormMode) {
                 FormModeContent(

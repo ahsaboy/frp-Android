@@ -9,9 +9,6 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.util.Log
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
-import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,7 +37,6 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.acedroidx.frp.ui.theme.AppThemeMode
-import io.github.acedroidx.frp.ui.theme.FrpTheme
 import io.github.acedroidx.frp.ui.theme.putAppThemeMode
 import io.github.acedroidx.frp.ui.theme.putUseMonet
 import io.github.acedroidx.frp.ui.theme.readAppThemeMode
@@ -139,11 +135,7 @@ class SettingsActivity : BaseActivity() {
 
         applyEdgeToEdge()
         setContent {
-        val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
-        CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
-            val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
-            val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
-            FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
+            FrpThemedContent(themeMode = themeMode, useMonet = useMonet) {
                 Scaffold(topBar = {
                     SmallTopAppBar(
                         title = stringResource(R.string.settings_title),
@@ -181,7 +173,6 @@ class SettingsActivity : BaseActivity() {
                         )
                     }
                 }
-            }
             }
         }
     }

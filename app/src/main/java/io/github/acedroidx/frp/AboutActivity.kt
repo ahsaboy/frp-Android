@@ -3,9 +3,6 @@ package io.github.acedroidx.frp
 import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
-import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +20,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.acedroidx.frp.ui.theme.AppThemeMode
-import io.github.acedroidx.frp.ui.theme.FrpTheme
 import io.github.acedroidx.frp.ui.theme.readAppThemeMode
 import io.github.acedroidx.frp.ui.theme.readUseMonet
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,11 +47,7 @@ class AboutActivity : BaseActivity() {
 
         applyEdgeToEdge()
         setContent {
-        val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
-        CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
-            val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
-            val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
-            FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
+            FrpThemedContent(themeMode = themeMode, useMonet = useMonet) {
                 val frpVersion by frpVersion.collectAsStateWithLifecycle("Loading...")
                 Scaffold(topBar = {
                     SmallTopAppBar(
@@ -79,7 +71,6 @@ class AboutActivity : BaseActivity() {
                         MainContent(frpVersion = frpVersion)
                     }
                 }
-            }
             }
         }
     }

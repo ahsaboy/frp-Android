@@ -8,8 +8,16 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import io.github.acedroidx.frp.ui.theme.AppThemeMode
+import io.github.acedroidx.frp.ui.theme.FrpTheme
 import io.github.acedroidx.frp.ui.theme.readAppThemeMode
+import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
 
 /**
@@ -17,6 +25,24 @@ import java.util.Locale
  * 避免页面跳转时主题色闪烁。
  */
 open class BaseActivity : AppCompatActivity() {
+
+    @Composable
+    protected fun FrpThemedContent(
+        themeMode: StateFlow<AppThemeMode>,
+        useMonet: StateFlow<Boolean>,
+        content: @Composable () -> Unit,
+    ) {
+        val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
+        CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
+            val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
+            val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
+            FrpTheme(
+                themeMode = currentTheme,
+                useMonet = currentUseMonet,
+                content = content,
+            )
+        }
+    }
 
     protected fun applyEdgeToEdge() {
         enableEdgeToEdge(

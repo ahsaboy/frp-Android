@@ -15,9 +15,6 @@ import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
-import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
 import androidx.compose.foundation.horizontalScroll
@@ -63,7 +60,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.acedroidx.frp.config.TomlParserUtil
 import io.github.acedroidx.frp.ui.theme.AppThemeMode
-import io.github.acedroidx.frp.ui.theme.FrpTheme
 import io.github.acedroidx.frp.ui.theme.readAppThemeMode
 import io.github.acedroidx.frp.ui.theme.readUseMonet
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -240,15 +236,12 @@ class MainActivity : BaseActivity() {
 
         applyEdgeToEdge()
         setContent {
-        val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
-        CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
-            val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
-            val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
+            FrpThemedContent(themeMode = themeMode, useMonet = useMonet) {
             val openDialog = remember { mutableStateOf(false) }
             val snackbarHostState = remember { SnackbarHostState() }
             val permissionGranted by permissionGranted.collectAsStateWithLifecycle(true)
 
-            FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
+
                 val frpVersion by frpVersion.collectAsStateWithLifecycle("Loading...")
                 Scaffold(
                     topBar = {
@@ -313,7 +306,6 @@ class MainActivity : BaseActivity() {
                         }
                     }
                 }
-            }
             }
         }
 

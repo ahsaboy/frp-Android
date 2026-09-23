@@ -8,9 +8,6 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
-import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +23,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.acedroidx.frp.ui.theme.AppThemeMode
-import io.github.acedroidx.frp.ui.theme.FrpTheme
 import io.github.acedroidx.frp.ui.theme.readAppThemeMode
 import io.github.acedroidx.frp.ui.theme.readUseMonet
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,11 +49,7 @@ class BatteryOptimizationGuideActivity : BaseActivity() {
 
         applyEdgeToEdge()
         setContent {
-        val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
-        CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
-            val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
-            val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
-            FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
+            FrpThemedContent(themeMode = themeMode, useMonet = useMonet) {
                 Scaffold(
                     topBar = {
                         SmallTopAppBar(
@@ -78,7 +70,6 @@ class BatteryOptimizationGuideActivity : BaseActivity() {
                         isWhitelisted = batteryOptimizationWhitelisted.collectAsStateWithLifecycle(false).value
                     )
                 }
-            }
             }
         }
     }

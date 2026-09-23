@@ -22,10 +22,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
-import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.joaomgcd.taskerpluginlibrary.action.TaskerPluginRunnerActionNoOutput
 import com.joaomgcd.taskerpluginlibrary.config.TaskerPluginConfig
 import com.joaomgcd.taskerpluginlibrary.config.TaskerPluginConfigHelperNoOutput
@@ -45,7 +41,6 @@ import io.github.acedroidx.frp.ShellService
 import io.github.acedroidx.frp.ShellServiceAction
 import io.github.acedroidx.frp.startShellService
 import io.github.acedroidx.frp.ui.theme.AppThemeMode
-import io.github.acedroidx.frp.ui.theme.FrpTheme
 import io.github.acedroidx.frp.ui.theme.readAppThemeMode
 import io.github.acedroidx.frp.ui.theme.readUseMonet
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -135,13 +130,8 @@ class ActivityConfigStartFrp : BaseActivity(), TaskerPluginConfig<StartFrpInput>
 
         applyEdgeToEdge()
         setContent {
-            val navEventOwner = rememberNavigationEventDispatcherOwner(enabled = true, parent = null)
-            CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navEventOwner) {
-                val currentTheme by themeMode.collectAsStateWithLifecycle(AppThemeMode.SYSTEM)
-                val currentUseMonet by useMonet.collectAsStateWithLifecycle(false)
-                FrpTheme(themeMode = currentTheme, useMonet = currentUseMonet) {
-                    TaskerStartFrpContent()
-                }
+            FrpThemedContent(themeMode = themeMode, useMonet = useMonet) {
+                TaskerStartFrpContent()
             }
         }
     }
