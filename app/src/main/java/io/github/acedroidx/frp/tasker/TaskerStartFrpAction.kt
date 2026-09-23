@@ -215,7 +215,7 @@ class ActivityConfigStartFrp : BaseActivity(), TaskerPluginConfig<StartFrpInput>
                     OverlaySpinnerPreference(
                         title = stringResource(R.string.tasker_select_config),
                         items = listOf(
-                            SpinnerEntry(title = stringResource(R.string.quick_tile_not_selected)),
+                            SpinnerEntry(title = stringResource(R.string.tasker_config_not_selected)),
                         ) + loadedConfigFiles.map { SpinnerEntry(title = it) },
                         selectedIndex = (configFileIndex + 1).coerceIn(0, loadedConfigFiles.size),
                         onSelectedIndexChange = { idx ->

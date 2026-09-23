@@ -20,6 +20,9 @@ class ConfigFormViewModel(
     private val _textContent = MutableStateFlow("")
     val textContent = _textContent.asStateFlow()
 
+    private val _textModeError = MutableStateFlow(false)
+    val textModeError = _textModeError.asStateFlow()
+
     private val _expandedSections = MutableStateFlow(setOf<String>())
     val expandedSections = _expandedSections.asStateFlow()
 
@@ -59,9 +62,11 @@ class ConfigFormViewModel(
         try {
             formData.loadFromToml(_textContent.value)
             applyDefaults()
+            _textModeError.value = false
             _isFormMode.value = true
         } catch (_: Exception) {
-            // parse failed, stay in text mode
+            _textModeError.value = true
+            // Keep the raw text so the user can correct it without losing work.
         }
     }
 
@@ -72,6 +77,7 @@ class ConfigFormViewModel(
 
     fun setTextContent(text: String) {
         _textContent.value = text
+        _textModeError.value = false
     }
 
     fun setEditingProxy(index: Int?) {

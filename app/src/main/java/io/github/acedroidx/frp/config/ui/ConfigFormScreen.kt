@@ -66,6 +66,7 @@ fun ConfigFormScreen(
     val viewModel = remember { ConfigFormViewModel.create(configType, initialToml) }
     val isFormMode by viewModel.isFormMode.collectAsStateWithLifecycle()
     val textContent by viewModel.textContent.collectAsStateWithLifecycle()
+    val textModeError by viewModel.textModeError.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -146,7 +147,11 @@ fun ConfigFormScreen(
                     onRename = onRename,
                 )
             } else {
-                TextModeContent(textContent) { viewModel.setTextContent(it) }
+                TextModeContent(
+                    text = textContent,
+                    hasParseError = textModeError,
+                    onTextChange = viewModel::setTextContent,
+                )
             }
         }
     }
@@ -246,14 +251,29 @@ private fun FormModeContent(
 @Composable
 private fun TextModeContent(
     text: String,
+    hasParseError: Boolean,
     onTextChange: (String) -> Unit,
 ) {
-    TextField(
-        value = text,
-        onValueChange = onTextChange,
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
-    )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+    ) {
+        TextField(
+            value = text,
+            onValueChange = onTextChange,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+        )
+        if (hasParseError) {
+            Text(
+                text = stringResource(R.string.config_form_invalid_toml),
+                color = MiuixTheme.colorScheme.error,
+                style = MiuixTheme.textStyles.footnote1,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
 }
 
 @Composable

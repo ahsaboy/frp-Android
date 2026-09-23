@@ -116,6 +116,7 @@
     <string name="config_form_frps_title">frps Config</string>
     <string name="config_form_text_mode">Text Mode</string>
     <string name="config_form_form_mode">Form Mode</string>
+    <string name="config_form_invalid_toml">Invalid TOML. Fix the text before switching to form mode.</string>
     <string name="config_management_title">File Management</string>
     <string name="config_file_name">Config File Name</string>
     <string name="config_item_unnamed">(Unnamed)</string>

@@ -116,6 +116,7 @@
     <string name="config_form_frps_title">frps 配置</string>
     <string name="config_form_text_mode">文本模式</string>
     <string name="config_form_form_mode">表单模式</string>
+    <string name="config_form_invalid_toml">TOML 格式无效，请修正文本后再切换到表单模式。</string>
     <string name="config_management_title">文件管理</string>
     <string name="config_file_name">配置文件名</string>
     <string name="config_item_unnamed">(未命名)</string>
