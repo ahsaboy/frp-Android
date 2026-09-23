@@ -23,7 +23,7 @@ val hasSigning = (!envStoreFile.isNullOrEmpty()) ||
 val frpVersion: String = (project.findProperty("frpVersion") as? String)
     ?: error("gradle.properties 中缺少 frpVersion")
 
-val appVersionName = "1.5.9"
+val appVersionName = "1.5.10"
 
 android {
     androidResources {
@@ -55,7 +55,7 @@ android {
         minSdk = 24
         targetSdk = 37
         compileSdk = 37
-        versionCode = 26
+        versionCode = 27
         versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
