@@ -243,7 +243,6 @@ class MainActivity : BaseActivity() {
             val permissionGranted by permissionGranted.collectAsStateWithLifecycle(true)
 
 
-                val frpVersion by frpVersion.collectAsStateWithLifecycle("Loading...")
                 Scaffold(
                     topBar = {
                         SmallTopAppBar(

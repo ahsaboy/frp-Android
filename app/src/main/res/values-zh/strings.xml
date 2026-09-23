@@ -51,6 +51,7 @@
     <string name="tasker_select_type">选择FRP类型：</string>
     <string name="tasker_select_config">选择配置文件</string>
     <string name="tasker_no_config">没有找到配置文件，请先在应用里创建一个配置。</string>
+    <string name="tasker_config_not_selected">请选择配置</string>
     <string name="tasker_stop_config_title">停止 FRP 配置</string>
     <string name="tasker_stop_all">停止所有运行中的配置</string>
     <string name="permission_notification_title">需要通知权限</string>
