@@ -112,7 +112,8 @@ object SchemaHelpers {
         }
         val child = current[key]
         if (child !is Map<*, *>) return false
-        val copy = child.toMutableMap()
+        @Suppress("UNCHECKED_CAST")
+        val copy = child.toMutableMap() as MutableMap<String, Any?>
         current[key] = copy
         val removed = removeValueAt(copy, parts, index + 1)
         if (copy.isEmpty()) current.remove(key)
