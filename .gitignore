@@ -94,3 +94,5 @@ TASKER_PLUGIN_DEVELOPMENT_GUIDE.md
 # frp 官方二进制由构建自动下载
 gradle/.frp-cache/
 app/src/main/jniLibs/
+# 签名库材料，禁止入库
+app/geohot.b64
