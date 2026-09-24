@@ -72,7 +72,6 @@ class ConfigActivity : BaseActivity() {
                         saveConfig()
                         closeActivity()
                     },
-                    onCancel = { closeActivity() },
                     onDontSave = { closeActivity() },
                     configFileName = currentConfigFileName,
                     onRename = { newName -> renameConfig(newName) },

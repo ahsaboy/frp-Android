@@ -20,13 +20,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.edit
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +42,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -59,9 +60,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -129,11 +132,11 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
-import top.yukonga.miuix.kmp.icon.extended.ExpandLess
-import top.yukonga.miuix.kmp.icon.extended.ExpandMore
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Link
+import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -187,13 +190,16 @@ class MainActivity : BaseActivity() {
     private var appliedLanguagePreference: String = "system"
     private val configRefreshCounter = mutableStateOf(0)
     private val showExportDialog = mutableStateOf(false)
+    private var pendingExportConfigs: List<FrpConfig>? = null
     private val showLogMaxLinesDialog = mutableStateOf(false)
 
     private val exportDocumentLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri: Uri? ->
+        val configs = pendingExportConfigs
+        pendingExportConfigs = null
         uri?.let {
-            lifecycleScope.launch { exportConfigsToUri(it) }
+            lifecycleScope.launch { exportConfigsToUri(it, configs) }
         }
     }
 
@@ -270,6 +276,7 @@ class MainActivity : BaseActivity() {
             updateConfigList()
         }
 
+    @OptIn(ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -327,6 +334,20 @@ class MainActivity : BaseActivity() {
                 val snackbarHostState = remember { SnackbarHostState() }
                 val permissionGranted by permissionGranted.collectAsStateWithLifecycle(true)
                 val selectedDestination = selectedDestinationState.intValue
+                val destinationPagerState = rememberPagerState(
+                    initialPage = selectedDestination,
+                    pageCount = { 4 },
+                )
+                LaunchedEffect(selectedDestination) {
+                    if (destinationPagerState.currentPage != selectedDestination) {
+                        destinationPagerState.animateScrollToPage(selectedDestination)
+                    }
+                }
+                LaunchedEffect(destinationPagerState) {
+                    snapshotFlow { destinationPagerState.settledPage }.collect { page ->
+                        selectedDestinationState.intValue = page
+                    }
+                }
                 val currentIsStartup by isStartup.collectAsStateWithLifecycle(false)
                 val currentLogWrapEnabled by logWrapEnabled.collectAsStateWithLifecycle(true)
                 val currentLogMaxLines by logMaxLines.collectAsStateWithLifecycle(DEFAULT_LOG_MAX_LINES)
@@ -397,23 +418,10 @@ class MainActivity : BaseActivity() {
                         SnackbarHost(state = snackbarHostState)
                     }
                 ) { contentPadding ->
-                    AnimatedContent(
-                        targetState = selectedDestination,
+                    HorizontalPager(
+                        state = destinationPagerState,
                         modifier = Modifier.padding(contentPadding).fillMaxSize(),
-                        transitionSpec = {
-                            val forward = targetState > initialState
-                            val enterOffset: (Int) -> Int = { width -> if (forward) width else -width }
-                            val exitOffset: (Int) -> Int = { width -> if (forward) -width else width }
-                            (slideInHorizontally(
-                                animationSpec = tween(280),
-                                initialOffsetX = enterOffset,
-                            ) + fadeIn(animationSpec = tween(180))) togetherWith
-                                (slideOutHorizontally(
-                                    animationSpec = tween(280),
-                                    targetOffsetX = exitOffset,
-                                ) + fadeOut(animationSpec = tween(180)))
-                        },
-                        label = "main_destination_transition",
+                        beyondViewportPageCount = 1,
                     ) { destination ->
                         val pageModifier = Modifier.fillMaxSize()
                         when (destination) {
@@ -570,6 +578,8 @@ class MainActivity : BaseActivity() {
         val isLogWrapEnabled by logWrapEnabled.collectAsStateWithLifecycle(true)
         var query by remember(configType) { mutableStateOf("") }
         var searchExpanded by remember(configType) { mutableStateOf(false) }
+        var selectedConfigs by remember(configType) { mutableStateOf<Set<FrpConfig>>(emptySet()) }
+        var showBulkDeleteDialog by remember(configType) { mutableStateOf(false) }
         val normalizedQuery = query.trim()
         val filteredConfigs = configs.filter { config ->
             normalizedQuery.isEmpty() || config.fileName.contains(normalizedQuery, ignoreCase = true)
@@ -586,7 +596,7 @@ class MainActivity : BaseActivity() {
         ) {
             item(key = "search") {
                     SearchBar(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         expanded = searchExpanded,
                         onExpandedChange = { searchExpanded = it },
                         inputField = {
@@ -600,6 +610,43 @@ class MainActivity : BaseActivity() {
                             )
                         },
                     ) { }
+            }
+            if (selectedConfigs.isNotEmpty()) {
+                item(key = "selection_actions") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(stringResource(R.string.selected_config_count, selectedConfigs.size))
+                        Spacer(Modifier.weight(1f))
+                        IconButton(
+                            onClick = {
+                                launchExportDocument("FRP_selected", selectedConfigs.toList())
+                                selectedConfigs = emptySet()
+                            },
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Share,
+                                contentDescription = stringResource(R.string.export_config),
+                            )
+                        }
+                        IconButton(
+                            onClick = { showBulkDeleteDialog = true },
+                            enabled = selectedConfigs.none(runningConfigs::contains),
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Delete,
+                                contentDescription = stringResource(R.string.delete_config),
+                            )
+                        }
+                        IconButton(onClick = { selectedConfigs = emptySet() }) {
+                            Icon(
+                                imageVector = MiuixIcons.Close,
+                                contentDescription = stringResource(R.string.dismiss),
+                            )
+                        }
+                    }
+                }
             }
             if (filteredConfigs.isEmpty()) {
                 item(key = "empty") {
@@ -615,8 +662,54 @@ class MainActivity : BaseActivity() {
                 items = filteredConfigs,
                 key = { config -> "${config.type.typeName}:${config.fileName}" },
             ) { config ->
-                FrpConfigItem(config, runningConfigs, isLogWrapEnabled)
+                FrpConfigItem(
+                    config = config,
+                    runningConfigs = runningConfigs,
+                    isLogWrapEnabled = isLogWrapEnabled,
+                    selectionMode = selectedConfigs.isNotEmpty(),
+                    isSelected = config in selectedConfigs,
+                    onSelect = {
+                        selectedConfigs = if (config in selectedConfigs) {
+                            selectedConfigs - config
+                        } else {
+                            selectedConfigs + config
+                        }
+                    },
+                    onLongPress = { selectedConfigs = selectedConfigs + config },
+                )
             }
+        }
+
+        if (showBulkDeleteDialog) {
+            OverlayDialog(
+                show = true,
+                title = stringResource(R.string.confirm_delete_title),
+                onDismissRequest = { showBulkDeleteDialog = false },
+                content = {
+                    Text(stringResource(R.string.confirm_delete_selected_message, selectedConfigs.size))
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        TextButton(
+                            text = stringResource(R.string.dismiss),
+                            onClick = { showBulkDeleteDialog = false },
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(20.dp))
+                        TextButton(
+                            text = stringResource(R.string.deleteConfigButton),
+                            onClick = {
+                                selectedConfigs.filterNot(runningConfigs::contains).forEach(::deleteConfig)
+                                selectedConfigs = emptySet()
+                                showBulkDeleteDialog = false
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                        )
+                    }
+                },
+            )
         }
     }
 
@@ -795,10 +888,13 @@ class MainActivity : BaseActivity() {
         config: FrpConfig,
         runningConfigs: List<FrpConfig>,
         isLogWrapEnabled: Boolean,
+        selectionMode: Boolean,
+        isSelected: Boolean,
+        onSelect: () -> Unit,
+        onLongPress: () -> Unit,
     ) {
         val isRunning = runningConfigs.contains(config)
         val showLog = remember { mutableStateOf(false) }
-        val showDeleteDialog = remember { mutableStateOf(false) }
 
         // 读取配置状态信息
         val refreshCount = configRefreshCounter.value
@@ -826,21 +922,29 @@ class MainActivity : BaseActivity() {
         }
 
         Column(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 4.dp)
+                    .then(
+                        if (isSelected) {
+                            Modifier.border(2.dp, MiuixTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                        } else Modifier
+                    )
+                    .combinedClickable(
+                        onClick = {
+                            if (selectionMode) {
+                                onSelect()
+                            } else if (mBound) {
+                                showLog.value = !showLog.value
+                                if (showLog.value) mService.getConfigLog(config)
+                            }
+                        },
+                        onLongClick = onLongPress,
+                    ),
                 cornerRadius = 12.dp,
-                onClick = {
-                    if (mBound) {
-                        showLog.value = !showLog.value
-                        if (showLog.value) {
-                            mService.getConfigLog(config)
-                        }
-                    }
-                }
             ) {
                 Column(
                     modifier = Modifier
@@ -885,43 +989,6 @@ class MainActivity : BaseActivity() {
                                 )
                             }
                         }
-                        Icon(
-                            imageVector = if (showLog.value) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
-                            contentDescription = stringResource(
-                                if (showLog.value) R.string.collapse else R.string.expand,
-                            ),
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        IconButton(
-                            onClick = { startConfigActivity(config) },
-                            enabled = !isRunning,
-                            modifier = Modifier.size(36.dp),
-                            backgroundColor = MiuixTheme.colorScheme.secondaryVariant,
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Edit,
-                                contentDescription = stringResource(R.string.edit_config),
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
-                        IconButton(
-                            onClick = { showDeleteDialog.value = true },
-                            enabled = !isRunning,
-                            modifier = Modifier.padding(start = 8.dp).size(36.dp),
-                            backgroundColor = MiuixTheme.colorScheme.secondaryVariant,
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Delete,
-                                contentDescription = stringResource(R.string.delete_config),
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
                         Switch(
                             checked = isRunning,
                             onCheckedChange = {
@@ -932,8 +999,27 @@ class MainActivity : BaseActivity() {
                                     showLog.value = false
                                 }
                             },
+                            enabled = !selectionMode,
                             modifier = Modifier.padding(start = 8.dp),
                         )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        IconButton(
+                            onClick = { startConfigActivity(config) },
+                            enabled = !isRunning && !selectionMode,
+                            modifier = Modifier.size(36.dp),
+                            backgroundColor = MiuixTheme.colorScheme.secondaryVariant,
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Edit,
+                                contentDescription = stringResource(R.string.edit_config),
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -1024,37 +1110,6 @@ class MainActivity : BaseActivity() {
             }
         }
 
-        // 删除确认对话框
-        if (showDeleteDialog.value) {
-            OverlayDialog(
-                show = true,
-                title = stringResource(R.string.confirm_delete_title),
-                onDismissRequest = { showDeleteDialog.value = false },
-                content = {
-                    Text(stringResource(R.string.confirm_delete_message, config.fileName))
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        TextButton(
-                            text = stringResource(R.string.dismiss),
-                            onClick = { showDeleteDialog.value = false },
-                            modifier = Modifier.weight(1f),
-                        )
-                        Spacer(Modifier.width(20.dp))
-                        TextButton(
-                            text = stringResource(R.string.deleteConfigButton),
-                            onClick = {
-                                deleteConfig(config)
-                                showDeleteDialog.value = false
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.textButtonColorsPrimary(),
-                        )
-                    }
-                }
-            )
-        }
     }
 
     private data class ConfigStatusInfo(
@@ -1292,24 +1347,36 @@ class MainActivity : BaseActivity() {
     }
 
     private fun launchExportDocument(fileName: String) {
+        launchExportDocument(fileName, null)
+    }
+
+    private fun launchExportDocument(fileName: String, configs: List<FrpConfig>?) {
         val baseName = fileName.trim().ifEmpty { "FRP_config" }
         val exportName = if (baseName.endsWith(".zip", ignoreCase = true)) baseName else "$baseName.zip"
+        pendingExportConfigs = configs
         exportDocumentLauncher.launch(exportName)
     }
 
-    private suspend fun exportConfigsToUri(uri: Uri) = withContext(Dispatchers.IO) {
+    private suspend fun exportConfigsToUri(uri: Uri, selectedConfigs: List<FrpConfig>?) = withContext(Dispatchers.IO) {
         try {
             val outputStream = contentResolver.openOutputStream(uri)
                 ?: throw IllegalStateException("Failed to open target uri")
             outputStream.use { stream ->
                 ZipOutputStream(stream).use { zipOut ->
-                    listOf(FrpType.FRPC, FrpType.FRPS).forEach { type ->
-                        type.getDir(this@MainActivity).listFiles()?.forEach { file ->
-                            if (file.isFile && file.name.endsWith(".toml")) {
-                                zipOut.putNextEntry(ZipEntry("${type.typeName.uppercase(Locale.getDefault())}/${file.name}"))
-                                FileInputStream(file).use { input -> input.copyTo(zipOut) }
-                                zipOut.closeEntry()
-                            }
+                    val configs = selectedConfigs ?: listOf(FrpType.FRPC, FrpType.FRPS).flatMap { type ->
+                        type.getDir(this@MainActivity).listFiles()
+                            ?.filter { it.isFile && it.name.endsWith(".toml") }
+                            ?.map { FrpConfig(type, it.name) }
+                            .orEmpty()
+                    }
+                    configs.forEach { config ->
+                        val file = config.getFile(this@MainActivity)
+                        if (file.isFile && file.name.endsWith(".toml")) {
+                            zipOut.putNextEntry(
+                                ZipEntry("${config.type.typeName.uppercase(Locale.getDefault())}/${file.name}")
+                            )
+                            FileInputStream(file).use { input -> input.copyTo(zipOut) }
+                            zipOut.closeEntry()
                         }
                     }
                 }

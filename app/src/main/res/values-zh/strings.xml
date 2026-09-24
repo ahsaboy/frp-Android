@@ -61,6 +61,8 @@
     <string name="no_config">没有配置，点击按钮去添加一个！</string>
     <string name="search_config">搜索配置</string>
     <string name="no_matching_config">没有匹配的配置</string>
+    <string name="selected_config_count">已选择 %1$d 项</string>
+    <string name="confirm_delete_selected_message">确认删除选中的 %1$d 个配置吗？</string>
     <string name="rename">重命名</string>
     <string name="confirm">确认</string>
     <string name="dismiss">取消</string>

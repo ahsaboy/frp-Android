@@ -1,5 +1,11 @@
 package io.github.acedroidx.frp.config.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,12 +17,21 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -27,7 +42,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.acedroidx.frp.FrpType
 import io.github.acedroidx.frp.R
 import io.github.acedroidx.frp.config.ConfigFormViewModel
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -38,18 +52,21 @@ import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.basic.TextButton
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ConfigFormScreen(
     configType: FrpType,
     initialToml: String,
     onSave: (String) -> Unit,
-    onCancel: () -> Unit,
     onDontSave: () -> Unit,
     configFileName: String,
     onRename: (String) -> Unit,
@@ -63,6 +80,19 @@ fun ConfigFormScreen(
     val isFormMode by viewModel.isFormMode.collectAsStateWithLifecycle()
     val textContent by viewModel.textContent.collectAsStateWithLifecycle()
     val textModeError by viewModel.textModeError.collectAsStateWithLifecycle()
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collectLatest { page ->
+            if (page == 1 && viewModel.isFormMode.value) {
+                viewModel.switchToTextMode()
+            } else if (page == 0 && !viewModel.isFormMode.value) {
+                viewModel.switchToFormMode()
+                if (!viewModel.isFormMode.value) pagerState.animateScrollToPage(1)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -75,47 +105,29 @@ fun ConfigFormScreen(
                     }
                 ),
                 navigationIcon = {
-                    IconButton(onClick = onCancel) {
+                    IconButton(onClick = onDontSave) {
                         Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = stringResource(R.string.back)
+                            imageVector = MiuixIcons.Close,
+                            contentDescription = stringResource(R.string.dontSaveConfigButton),
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            if (isFormMode) onSave(viewModel.formData.toToml())
+                            else onSave(textContent)
+                        },
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Ok,
+                            contentDescription = stringResource(R.string.saveConfigButton),
                         )
                     }
                 },
             )
         },
         bottomBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Button(
-                    onClick = {
-                        if (isFormMode) onSave(viewModel.formData.toToml())
-                        else onSave(textContent)
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColorsPrimary(),
-                ) {
-                    Text(stringResource(R.string.saveConfigButton))
-                }
-                TextButton(
-                    text = stringResource(R.string.dontSaveConfigButton),
-                    onClick = onDontSave,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        },
-        modifier = modifier,
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
             TabRow(
                 tabs = listOf(
                     stringResource(R.string.nav_form_mode),
@@ -123,12 +135,29 @@ fun ConfigFormScreen(
                 ),
                 selectedTabIndex = if (isFormMode) 0 else 1,
                 onTabSelected = { index ->
-                    if (index == 0 && !isFormMode) viewModel.switchToFormMode()
-                    if (index == 1 && isFormMode) viewModel.switchToTextMode()
+                    coroutineScope.launch {
+                        if (index == 0) {
+                            viewModel.switchToFormMode()
+                        } else {
+                            viewModel.switchToTextMode()
+                        }
+                        pagerState.animateScrollToPage(if (viewModel.isFormMode.value) 0 else 1)
+                    }
                 },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
             )
-            if (isFormMode) {
+        },
+        modifier = modifier,
+    ) { padding ->
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize().padding(padding),
+            userScrollEnabled = false,
+            beyondViewportPageCount = 1,
+        ) { page ->
+            if (page == 0) {
                 FormModeContent(
                     viewModel = viewModel,
                     configType = configType,
@@ -176,45 +205,89 @@ private fun FormModeContent(
             emptyList()
         }
 
-    val selectedSection = currentSection.coerceIn(0, tabs.lastIndex)
+    val tabsVisible = remember { mutableStateOf(true) }
+    val scrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (consumed.y < 0f) tabsVisible.value = false
+                if (consumed.y > 0f) tabsVisible.value = true
+                return Offset.Zero
+            }
+        }
+    }
+    val sectionPagerState = rememberPagerState(
+        initialPage = currentSection.coerceIn(0, tabs.lastIndex),
+        pageCount = { tabs.size },
+    )
+    val coroutineScope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(
-            tabs = tabs,
-            selectedTabIndex = selectedSection,
-            onTabSelected = viewModel::setSection,
-            minWidth = 110.dp,
-            maxWidth = 150.dp,
-        )
+    LaunchedEffect(sectionPagerState) {
+        snapshotFlow { sectionPagerState.settledPage }.collectLatest(viewModel::setSection)
+    }
+    LaunchedEffect(currentSection) {
+        val page = currentSection.coerceIn(0, tabs.lastIndex)
+        if (sectionPagerState.currentPage != page) sectionPagerState.animateScrollToPage(page)
+    }
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            if (selectedSection < schema.sections.size) {
-                val section = schema.sections[selectedSection]
-                if (selectedSection == 0) {
-                    item(key = "_management") {
-                        ManagementSectionCard(
-                            configFileName = configFileName,
-                            isAutoStart = isAutoStart,
-                            onAutoStartChange = onAutoStartChange,
-                            isAutoStartOnAppLaunch = isAutoStartOnAppLaunch,
-                            onAutoStartOnAppLaunchChange = onAutoStartOnAppLaunchChange,
-                            onRename = onRename,
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(scrollConnection),
+    ) {
+        AnimatedVisibility(
+            visible = tabsVisible.value,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            TabRow(
+                tabs = tabs,
+                selectedTabIndex = sectionPagerState.currentPage,
+                onTabSelected = { index ->
+                    coroutineScope.launch { sectionPagerState.animateScrollToPage(index) }
+                },
+                minWidth = 110.dp,
+                maxWidth = 150.dp,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        HorizontalPager(
+            state = sectionPagerState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) { selectedSection ->
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                if (selectedSection < schema.sections.size) {
+                    val section = schema.sections[selectedSection]
+                    if (selectedSection == 0) {
+                        item(key = "_management") {
+                            ManagementSectionCard(
+                                configFileName = configFileName,
+                                isAutoStart = isAutoStart,
+                                onAutoStartChange = onAutoStartChange,
+                                isAutoStartOnAppLaunch = isAutoStartOnAppLaunch,
+                                onAutoStartOnAppLaunchChange = onAutoStartOnAppLaunchChange,
+                                onRename = onRename,
+                            )
+                        }
+                    }
+                    item(key = section.id) {
+                        SectionCard(
+                            section = section,
+                            formData = viewModel.formData,
+                            schemaFields = allSchemaFields,
+                            expanded = expandedSections.contains(section.id),
+                            onToggle = { viewModel.toggleSection(section.id) },
                         )
                     }
-                }
-                item(key = section.id) {
-                    SectionCard(
-                        section = section,
-                        formData = viewModel.formData,
-                        schemaFields = allSchemaFields,
-                        expanded = expandedSections.contains(section.id),
-                        onToggle = { viewModel.toggleSection(section.id) },
-                    )
-                }
-            } else if (configType == FrpType.FRPC) {
-                when (selectedSection - schema.sections.size) {
-                    0 -> item { ProxyListEditor(viewModel) }
-                    1 -> item { VisitorListEditor(viewModel) }
+                } else if (configType == FrpType.FRPC) {
+                    when (selectedSection - schema.sections.size) {
+                        0 -> item { ProxyListEditor(viewModel) }
+                        1 -> item { VisitorListEditor(viewModel) }
+                    }
                 }
             }
         }
@@ -230,6 +303,7 @@ private fun TextModeContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
             .padding(horizontal = 16.dp),
     ) {
         Card(
